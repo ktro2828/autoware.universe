@@ -17,7 +17,7 @@
         <link rel="next" href="../crosswalk_traffic_light_estimator/">
       
       <link rel="icon" href="../../docs/assets/images/autoware-foundation.png">
-      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.1.4">
+      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.1.5">
     
     
       
@@ -25,7 +25,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.240905d7.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.7a7fce14.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.a0c5b2b5.min.css">
@@ -12135,6 +12135,13 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#parameters" class="md-nav__link">
+    Parameters
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -12162,28 +12169,15 @@
   
 </li>
         
-      </ul>
-    </nav>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#parameters" class="md-nav__link">
+          <li class="md-nav__item">
+  <a href="#parameters_1" class="md-nav__link">
     Parameters
   </a>
   
-    <nav class="md-nav" aria-label="Parameters">
-      <ul class="md-nav__list">
+</li>
         
-          <li class="md-nav__item">
-  <a href="#core-parameters" class="md-nav__link">
-    Core Parameters
-  </a>
+      </ul>
+    </nav>
   
 </li>
         
@@ -12247,7 +12241,7 @@
 
 <h1 id="compare_map_segmentation">compare_map_segmentation<a class="headerlink" href="#compare_map_segmentation" title="Permanent link">#</a></h1>
 <h2 id="purpose">Purpose<a class="headerlink" href="#purpose" title="Permanent link">#</a></h2>
-<p>The <code>compare_map_segmentation</code> is a node that filters the ground points from the input pointcloud by using map info (e.g. pcd, elevation map).</p>
+<p>The <code>compare_map_segmentation</code> is a node that filters the ground points from the input pointcloud by using map info (e.g. pcd, elevation map or split map pointcloud from map_loader interface).</p>
 <h2 id="inner-workings-algorithms">Inner-workings / Algorithms<a class="headerlink" href="#inner-workings-algorithms" title="Permanent link">#</a></h2>
 <h3 id="compare-elevation-map-filter">Compare Elevation Map Filter<a class="headerlink" href="#compare-elevation-map-filter" title="Permanent link">#</a></h3>
 <p>Compare the z of the input points with the value of elevation_map. The height difference is calculated by the binary integration of neighboring cells. Remove points whose height difference is below the <code>height_diff_thresh</code>.</p>
@@ -12260,7 +12254,8 @@
 <h3 id="voxel-based-approximate-compare-map-filter">Voxel Based Approximate Compare Map Filter<a class="headerlink" href="#voxel-based-approximate-compare-map-filter" title="Permanent link">#</a></h3>
 <p>WIP</p>
 <h3 id="voxel-based-compare-map-filter">Voxel Based Compare Map Filter<a class="headerlink" href="#voxel-based-compare-map-filter" title="Permanent link">#</a></h3>
-<p>WIP</p>
+<p>The filter loads the map pointcloud (static loading whole map at once at beginning or dynamic loading during vehicle moving) and utilizes VoxelGrid to downsample map pointcloud.</p>
+<p>For each point of input pointcloud, the filter use <code>getCentroidIndexAt</code> combine with <code>getGridCoordinates</code> function from VoxelGrid class to check if the downsampled map point existing surrounding input points. Remove the input point which has downsampled map point in voxels containing or being close to the point.</p>
 <h3 id="voxel-distance-based-compare-map-filter">Voxel Distance based Compare Map Filter<a class="headerlink" href="#voxel-distance-based-compare-map-filter" title="Permanent link">#</a></h3>
 <p>WIP</p>
 <h2 id="inputs-outputs">Inputs / Outputs<a class="headerlink" href="#inputs-outputs" title="Permanent link">#</a></h2>
@@ -12304,48 +12299,7 @@
 </tr>
 </tbody>
 </table>
-<h3 id="other-filters">Other Filters<a class="headerlink" href="#other-filters" title="Permanent link">#</a></h3>
-<h4 id="input_1">Input<a class="headerlink" href="#input_1" title="Permanent link">#</a></h4>
-<table>
-<thead>
-<tr>
-<th>Name</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>~/input/points</code></td>
-<td><code>sensor_msgs::msg::PointCloud2</code></td>
-<td>reference points</td>
-</tr>
-<tr>
-<td><code>~/input/map</code></td>
-<td><code>grid_map::msg::GridMap</code></td>
-<td>map</td>
-</tr>
-</tbody>
-</table>
-<h4 id="output_1">Output<a class="headerlink" href="#output_1" title="Permanent link">#</a></h4>
-<table>
-<thead>
-<tr>
-<th>Name</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>~/output/points</code></td>
-<td><code>sensor_msgs::msg::PointCloud2</code></td>
-<td>filtered points</td>
-</tr>
-</tbody>
-</table>
-<h2 id="parameters">Parameters<a class="headerlink" href="#parameters" title="Permanent link">#</a></h2>
-<h3 id="core-parameters">Core Parameters<a class="headerlink" href="#core-parameters" title="Permanent link">#</a></h3>
+<h4 id="parameters">Parameters<a class="headerlink" href="#parameters" title="Permanent link">#</a></h4>
 <table>
 <thead>
 <tr>
@@ -12373,6 +12327,94 @@
 <td align="left">float</td>
 <td align="left">Remove points whose height difference is below this value [m]</td>
 <td align="left">0.15</td>
+</tr>
+</tbody>
+</table>
+<h3 id="other-filters">Other Filters<a class="headerlink" href="#other-filters" title="Permanent link">#</a></h3>
+<h4 id="input_1">Input<a class="headerlink" href="#input_1" title="Permanent link">#</a></h4>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>~/input/points</code></td>
+<td><code>sensor_msgs::msg::PointCloud2</code></td>
+<td>reference points</td>
+</tr>
+<tr>
+<td><code>~/input/map</code></td>
+<td><code>sensor_msgs::msg::PointCloud2</code></td>
+<td>map (in case static map loading)</td>
+</tr>
+<tr>
+<td><code>~/pose_with_covariance</code></td>
+<td><code>geometry_msgs::msg::PoseWithCovarianceStamped</code></td>
+<td>current ego-vehicle pose (in case dynamic map loading)</td>
+</tr>
+</tbody>
+</table>
+<h4 id="output_1">Output<a class="headerlink" href="#output_1" title="Permanent link">#</a></h4>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>~/output/points</code></td>
+<td><code>sensor_msgs::msg::PointCloud2</code></td>
+<td>filtered points</td>
+</tr>
+</tbody>
+</table>
+<h4 id="parameters_1">Parameters<a class="headerlink" href="#parameters_1" title="Permanent link">#</a></h4>
+<table>
+<thead>
+<tr>
+<th align="left">Name</th>
+<th align="left">Type</th>
+<th align="left">Description</th>
+<th align="left">Default value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>use_dynamic_map_loading</code></td>
+<td align="left">bool</td>
+<td align="left">map loading mode selection, <code>true</code> for dynamic map loading, <code>false</code> for static map loading</td>
+<td align="left">true</td>
+</tr>
+<tr>
+<td align="left"><code>distance_threshold</code></td>
+<td align="left">float</td>
+<td align="left">VoxelGrid's leaf_size also the threshold to check distance between input point and map point</td>
+<td align="left">0.5</td>
+</tr>
+<tr>
+<td align="left"><code>map_update_distance_threshold</code></td>
+<td align="left">float</td>
+<td align="left">Threshold of vehicle movement distance when map update is necessary [m]</td>
+<td align="left">10.0</td>
+</tr>
+<tr>
+<td align="left"><code>map_loader_radius</code></td>
+<td align="left">float</td>
+<td align="left">Radius of map need to be loaded (in dynamic map loading) [m]</td>
+<td align="left">150.0</td>
+</tr>
+<tr>
+<td align="left"><code>timer_interval_ms</code></td>
+<td align="left">int</td>
+<td align="left">time interval of timer to check if update the map is necessary (in dynamic map loading) [ms]</td>
+<td align="left">100</td>
 </tr>
 </tbody>
 </table>
@@ -12412,10 +12454,10 @@
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
             </div>
             <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
               <div class="md-ellipsis">
-                <span class="md-footer__direction">
-                  Previous
-                </span>
                 bytetrack
               </div>
             </div>
@@ -12425,10 +12467,10 @@
           
           <a href="../crosswalk_traffic_light_estimator/" class="md-footer__link md-footer__link--next" aria-label="Next: crosswalk_traffic_light_estimator" rel="next">
             <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
               <div class="md-ellipsis">
-                <span class="md-footer__direction">
-                  Next
-                </span>
                 crosswalk_traffic_light_estimator
               </div>
             </div>
@@ -12468,7 +12510,7 @@
     <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.expand", "navigation.indexes", "navigation.instant", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.footer"], "search": "../../assets/javascripts/workers/search.208ed371.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.19047be9.min.js"></script>
+      <script src="../../assets/javascripts/bundle.407015b8.min.js"></script>
       
         <script src="https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
       
