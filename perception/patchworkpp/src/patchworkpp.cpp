@@ -17,6 +17,7 @@
 #include <Eigen/Dense>
 
 #include <pcl/common/centroid.h>
+#include <pcl/common/io.h>
 #include <pcl_conversions/pcl_conversions.h>
 
 #include <numeric>
@@ -35,6 +36,9 @@ PatchWorkPP::PatchWorkPP(const rclcpp::NodeOptions & options)
   std::string input_topic = declare_parameter<std::string>("input");
   std::string output_topic = declare_parameter<std::string>("output");
 
+  elevation_list_.resize(czm_params_.num_zone());
+  flatness_list_.resize(czm_params_.num_zone());
+
   pub_cloud_ = create_publisher<sensor_msgs::msg::PointCloud2>(output_topic, 1);
   sub_cloud_ = create_subscription<sensor_msgs::msg::PointCloud2>(
     input_topic, 1, std::bind(&PatchWorkPP::cloudCallback, this, std::placeholders::_1));
@@ -42,7 +46,7 @@ PatchWorkPP::PatchWorkPP(const rclcpp::NodeOptions & options)
 
 void PatchWorkPP::cloudCallback(sensor_msgs::msg::PointCloud2::ConstSharedPtr cloud_msg)
 {
-  pcl::PointCloud<PointT> in_cloud;
+  pcl::PointCloud<PointT> in_cloud, ground_cloud;
   pcl::fromROSMsg(*cloud_msg, in_cloud);
 
   // 1. RNR
@@ -50,45 +54,28 @@ void PatchWorkPP::cloudCallback(sensor_msgs::msg::PointCloud2::ConstSharedPtr cl
   // 2. CZM
   std::vector<Zone> czm = pointCloud2CZM(in_cloud, non_ground_cloud);
 
-  for (int zone_idx = 0; zone_idx < czm_params_.num_zone(); ++i) {
+  for (int zone_idx = 0; zone_idx < czm_params_.num_zone(); ++zone_idx) {
     Zone zone = czm.at(zone_idx);
     for (int ring_idx = 0; ring_idx < czm_params_.num_rings(zone_idx); ++ring_idx) {
       for (int sector_idx = 0; sector_idx < czm_params_.num_sectors(zone_idx); ++sector_idx) {
         pcl::PointCloud<PointT> & zone_cloud = zone.at(ring_idx).at(sector_idx);
-        if (zone_cloud.points.size() < czm_params_.min_num_points()) {
-          non_ground_cloud.emplace_back(zone_cloud);
+        if (static_cast<int>(zone_cloud.points.size()) < czm_params_.min_num_points()) {
+          std::for_each(
+            zone_cloud.points.begin(), zone_cloud.points.end(),
+            [&](const auto & point) { non_ground_cloud.emplace_back(point); });
           continue;
         }
 
         // sort by z-value
         std::sort(
           zone_cloud.points.begin(), zone_cloud.points.end(),
-          [](const PointT & pt1, const PointT & pt2) { return pt1.z < pt2.z; })
+          [](const PointT & pt1, const PointT & pt2) { return pt1.z < pt2.z; });
+
+        // 3. RPF
+        executeRPF(zone_idx, zone_cloud, ground_cloud, non_ground_cloud);
       }
     }
   }
-}
-
-pcl::PointCloud<PointT> PatchWorkPP::sampleSeeds(const pcl::PointCloud<PointT> & in_cloud) const
-{
-  pcl::PointCloud<PointT> seed_cloud;
-  // sort by z-value
-  std::sort(
-    in_cloud.points.begin(), in_cloud.points.end(),
-    [](const PointT & pt1, const PointT & pt2) { return pt1.z < pt2.z; });
-
-  double sum_z = std::accumulate(
-    in_cloud.points.begin(), in_cloud.points.end(), 0.0,
-    [](double acc, const auto & pt) { return acc + pt.z; });
-
-  double lowest_z = in_cloud.points.size() != 0 ? sum_z / in_cloud.points.size() : 0.0;
-
-  for (const auto & point : in_cloud.points) {
-    if (point.z < lowest_z) {
-      seed_cloud.points.emplace_back(point);
-    }
-  }
-  return seed_cloud;
 }
 
 pcl::PointCloud<PointT> PatchWorkPP::executeRNR(const pcl::PointCloud<PointT> & in_cloud) const
@@ -107,82 +94,128 @@ pcl::PointCloud<PointT> PatchWorkPP::executeRNR(const pcl::PointCloud<PointT> & 
   return non_ground_cloud;
 }
 
+pcl::PointCloud<PointT> PatchWorkPP::sampleInitialSeed(
+  const int zone_idx, pcl::PointCloud<PointT> & in_cloud) const
+{
+  pcl::PointCloud<PointT> seed_cloud;
+  // sort by z-value
+  std::sort(
+    in_cloud.points.begin(), in_cloud.points.end(),
+    [](const PointT & pt1, const PointT & pt2) { return pt1.z < pt2.z; });
+
+  int init_idx = 0;
+  if (zone_idx == 0) {
+    double lowest_z_in_close_zone =
+      common_params_.sensor_height() == 0 ? -0.1 : common_params_.lowest_z_in_close_zone();
+    for (const auto & point : in_cloud.points) {
+      if (point.z < lowest_z_in_close_zone) {
+        ++init_idx;
+      }
+    }
+  }
+
+  size_t num_sample = std::max(
+    std::min(static_cast<int>(in_cloud.points.size()), rpf_params_.num_sample()), init_idx);
+
+  double sum_z = std::accumulate(
+    in_cloud.points.begin() + init_idx, in_cloud.points.begin() + num_sample, 0.0,
+    [](double acc, const auto & pt) { return acc + pt.z; });
+
+  double lowest_z = num_sample != 0 ? sum_z / in_cloud.points.size() : 0.0;
+
+  for (const auto & point : in_cloud.points) {
+    if (point.z < lowest_z) {
+      seed_cloud.points.emplace_back(point);
+    }
+  }
+  return seed_cloud;
+}
+
 void PatchWorkPP::executeRPF(
-  const int zone_idx, const pcl::PointCloud<PointT> & zone_cloud,
+  const int zone_idx, pcl::PointCloud<PointT> & zone_cloud, pcl::PointCloud<PointT> & ground_cloud,
   pcl::PointCloud<PointT> & non_ground_cloud) const
 {
-  // 1. R-VPF
-  for (int n = 0; n < rpf_params_.num_iterator(); ++n) {
-  }
-  // 2. R-GPF
-  for (int n = 0; n < rpf_params_.num_iterator(); ++n) {
-  }
+  // 1. R-VPF ... Extract vertical cloud as non-ground cloud from seed cloud
+  auto seed_cloud1 = sampleInitialSeed(zone_idx, zone_cloud);
+  pcl::PointCloud<PointT> non_vertical_cloud;
+  estimateVerticalPlane(seed_cloud1, non_vertical_cloud, non_ground_cloud);
+
+  // 2. R-GPF ... Extract non-ground cloud from non-vertical cloud
+  auto seed_cloud2 = sampleInitialSeed(zone_idx, non_vertical_cloud);
+  estimateGroundPlane(seed_cloud2, ground_cloud, non_ground_cloud);
 }
 
 void PatchWorkPP::estimateVerticalPlane(
-  const pcl::PointCloud<PointT> & ground_cloud, pcl::PointCloud<PointT> & non_ground_cloud)
+  pcl::PointCloud<PointT> & seed_cloud, pcl::PointCloud<PointT> & non_vertical_cloud,
+  pcl::PointCloud<PointT> & non_ground_cloud) const
 {
   // Compute mean(m^k_n) and covariance(C)
   // TODO(ktro2828): Following variables can initialize in constructor
-  Eigen::Matrix3f covariance_matrix;
-  Eigen::Vector4f centroid;
-  const Eigen::Vector3f u_z(0, 0, 1);
+  Eigen::Matrix3d covariance_matrix;
+  Eigen::Vector4d centroid;
+  const Eigen::Vector3d u_z(0, 0, 1);
 
-  pcl::computeMeanAndCovarianceMatrix(ground_cloud, covariance_matrix, centroid);
-  // Compute eigenvalue(lambda1~3) and eigenvector(v1~3) for C(3x3)
-  Eigen::EigenSolver<Eigen::Matrix3f> solver(covariance_matrix);
-  // NOTE: The lowest eigenvector is v^k_3,n
-  // TODO(ktro2828): sort by eigenvalues
-  Eigen::Vector3cf v = solver.eigenvectors().col(2).normalized();
-  for (const auto & point : ground_cloud) {
-    // [Eq.2] d = |(p - m^k_n) * v^k_3,n|
-    // [Eq.3] PI / 2 - cos^(-1) (v^k_3,n * u_z)
-    Eigen::Vector3f p(point.x, point.y, point.z);
-    auto distance = v.dot((p - centroid.head<3>()).cwiseAbs());
-    auto angle = 0.5 * M_PI - std::acos(v.dot(u_z));
-    // TODO(ktro2828): Define max_distance_threshold and max_vertical_distance_threshold explicitly
-    if (
-      (distance < rpf_params_.max_distance_threshold()) &&
-      angle < rpf_params_.max_angle_threshold()) {
-      non_ground_cloud.emplace_back(point);
+  for (int n = 0; n < rpf_params_.num_iterator(); ++n) {
+    non_vertical_cloud.clear();
+    pcl::computeMeanAndCovarianceMatrix(seed_cloud, covariance_matrix, centroid);
+    // Compute eigenvalue(lambda1~3) and eigenvector(v1~3) for C(3x3)
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver(covariance_matrix);
+    // NOTE: The lowest eigenvector is v^k_3,n
+    Eigen::Vector3d v = solver.eigenvectors().col(2).normalized();
+    for (const auto & point : seed_cloud) {
+      // [Eq.2] d = |(p - m^k_n) * v^k_3,n|
+      // [Eq.3] PI / 2 - cos^(-1) (v^k_3,n * u_z)
+      Eigen::Vector3d p(point.x, point.y, point.z);
+      auto distance = v.dot((p - centroid.head<3>()).cwiseAbs());
+      auto angle = 0.5 * M_PI - std::acos(v.dot(u_z));
+      if (
+        (distance < rpf_params_.max_vertical_distance_threshold()) &&
+        angle < rpf_params_.max_angle_threshold()) {
+        non_ground_cloud.emplace_back(point);
+      } else {
+        non_vertical_cloud.emplace_back(point);
+      }
     }
+    pcl::copyPointCloud(non_vertical_cloud, seed_cloud);
   }
 }
 
 void PatchWorkPP::estimateGroundPlane(
-  const pcl::PointCloud<PointT> & ground_cloud, pcl::PointCloud<PointT> & non_ground_cloud)
+  pcl::PointCloud<PointT> & seed_cloud, pcl::PointCloud<PointT> & ground_cloud,
+  pcl::PointCloud<PointT> & non_ground_cloud) const
 {
   // Compute mean(m^k_n) and covariance(C)
   // TODO(ktro2828): Following variables can initialize in constructor
-  Eigen::Matrix3f covariance_matrix;
-  Eigen::Vector4f centroid;
+  Eigen::Matrix3d covariance_matrix;
+  Eigen::Vector4d centroid;
 
-  pcl::computeMeanAndCovarianceMatrix(ground_cloud, covariance_matrix, centroid);
-  // Compute eigenvalue(lambda1~3) and eigenvector(v1~3) for C(3x3)
-  Eigen::EigenSolver<Eigen::Matrix3f> solver(covariance_matrix);
-  // NOTE: The lowest eigenvector is v^k_3,n
-  // TODO(ktro2828): sort by eigenvalues
-  Eigen::Vector3cf v = solver.eigenvectors().col(2).normalized();
-  for (const auto & point : ground_cloud) {
-    Eigen::Vector3f p(point.x, point.y, point.z);
-    auto distance = v.dot((p - centroid.head<3>()).cwiseAbs());
-    // TODO(ktro2828): Define max_distance_threshold and max_vertical_distance_threshold explicitly
-    if (distance < rpf_params_.max_distance_threshold()) {
-      non_ground_cloud.emplace_back(point);
+  for (int n = 0; n < rpf_params_.num_iterator(); ++n) {
+    ground_cloud.clear();
+    pcl::computeMeanAndCovarianceMatrix(seed_cloud, covariance_matrix, centroid);
+    // Compute eigenvalue(lambda1~3) and eigenvector(v1~3) for C(3x3)
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver(covariance_matrix);
+    // The lowest eigenvector is v^k_3,n
+    Eigen::Vector3d v = solver.eigenvectors().col(0).normalized();
+    for (const auto & point : seed_cloud) {
+      Eigen::Vector3d p(point.x, point.y, point.z);
+      auto distance = v.dot((p - centroid.head<3>()).cwiseAbs());
+      if (distance < rpf_params_.max_distance_threshold()) {
+        non_ground_cloud.emplace_back(point);
+      } else {
+        ground_cloud.emplace_back(point);
+      }
     }
+    pcl::copyPointCloud(ground_cloud, seed_cloud);
   }
 }
 
 void PatchWorkPP::updateElevationThresholds()
 {
   for (int i = 0; i < czm_params_.num_zone(); ++i) {
-    // TODO(ktro2828): set a container of elevation thresholds to stock thresholds while some length
-    // time step
-    // Use .at(i)
-    if (TODO[i].empty()) {
+    if (elevation_list_.at(i).empty()) {
       return;
     }
-    const auto & [mean, std_dev] = calculateMeanStd(TODO[i]);
+    const auto & [mean, std_dev] = calculateMeanStd(elevation_list_.at(i));
     double new_threshold = mean + gle_params_.elevation_std_weights(i) * std_dev;
     czm_params_.updateElevationThreshold(i, new_threshold);
   }
@@ -191,13 +224,10 @@ void PatchWorkPP::updateElevationThresholds()
 void PatchWorkPP::updateFlatnessThresholds()
 {
   for (int i = 0; i < czm_params_.num_zone(); ++i) {
-    // TODO(ktro2828): set a container of flatness thresholds to stock thresholds while some length
-    // time step.
-    // Use .at(i)
-    if (TODO[i].empty()) {
+    if (flatness_list_.at(i).empty()) {
       return;
     }
-    const auto & [mean, std_dev] = calculateMeanStd(TODO[i]);
+    const auto & [mean, std_dev] = calculateMeanStd(flatness_list_.at(i));
     double new_threshold = mean + gle_params_.flatness_std_weights(i) * std_dev;
     czm_params_.updateFlatnessThreshold(i, new_threshold);
   }
@@ -205,13 +235,10 @@ void PatchWorkPP::updateFlatnessThresholds()
 
 void PatchWorkPP::updateHeightThreshold()
 {
-  // TODO(ktro2828): set a container of elevation thresholds to stock thresholds while some length
-  // time step
-  // Use .at(0)
-  if (TODO[0].empty()) {
+  if (elevation_list_.at(0).empty()) {
     return;
   }
-  const auto & [mean, std_dev] = calculateMeanStd(TODO[0]);
+  const auto & [mean, std_dev] = calculateMeanStd(elevation_list_.at(0));
   double new_threshold = mean + gle_params_.height_noise_margin();
   rnr_params_.updateHeightThreshold(new_threshold);
 }
@@ -233,7 +260,7 @@ std::vector<Zone> PatchWorkPP::pointCloud2CZM(
     // TODO(ktro2828): use a util function from other package
     double yaw = calculateYaw(point);
 
-    for (size_t i = 1; i < czm_params_.num_zone(); ++i) {
+    for (int i = 1; i < czm_params_.num_zone(); ++i) {
       if (czm_params_.min_zone_ranges(i) <= radius) {
         continue;
       }
