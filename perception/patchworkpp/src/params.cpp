@@ -23,6 +23,7 @@ CommonParams::CommonParams(const rclcpp::Node & node)
   sensor_height_ = node.declare_parameter<double>("common.sensor_height");
   min_range_ = node.declare_parameter<double>("common.min_range");
   max_range_ = node.declare_parameter<double>("common.max_range");
+  seed_selection_weight_ = node.declare_parameter<double>("common.seed_selection_weight");
 }
 
 RNRParams::RNRParams(const rclcpp::Node & node)
@@ -58,8 +59,10 @@ CZMParams::CZMParams(const rclcpp::Node & node)
 
 RPFParams::RPFParams(const rclcpp::Node & node)
 {
-  max_distance_threshold_ = node.declare_parameter<double>("rpf.max_distance_threshold");
+  max_vertical_distance_threshold_ =
+    node.declare_parameter<double>("rpf.max_vertical_distance_threshold");
   max_angle_threshold_ = node.declare_parameter<double>("rpf.max_angle_threshold");
+  max_distance_threshold_ = node.declare_parameter<double>("rpf.max_distance_threshold");
   num_iterator_ = node.declare_parameter<int>("rpf.num_iterator");
   num_sample_ = node.declare_parameter<int>("rpf.num_sample");
 }
