@@ -31,13 +31,14 @@
 
 namespace patchwork_pp
 {
+
+using PointT = pcl::PointXYZI;
+using Ring = std::vector<pcl::PointCloud<PointT>>;
+using Zone = std::vector<Ring>;
+
 class PatchWorkPP : public rclcpp::Node
 {
 public:
-  using PointT = pcl::PointXYZI;
-  using Ring = std::vector<pcl::PointCloud<PointT>>;
-  using Zone = std::vector<Ring>;
-
   explicit PatchWorkPP(const rclcpp::NodeOptions & options);
 
 private:
@@ -47,6 +48,9 @@ private:
   RPFParams rpf_params_;
   GLEParams gle_params_;
   TGRParams tgr_params_;
+
+  std::vector<std::vector<double>> elevation_list_;
+  std::vector<std::vector<double>> flatness_list_;
 
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_cloud_;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_cloud_;
@@ -69,10 +73,7 @@ private:
    * @param point
    * @return double
    */
-  static double calculateRadius(const pcl::PointCloud<PointT> & point)
-  {
-    return std::hypot(point.x, point.y);
-  }
+  static double calculateRadius(const PointT & point) { return std::hypot(point.x, point.y); }
 
   /**
    * @brief Returns yaw angle [deg].
@@ -80,7 +81,7 @@ private:
    * @param point
    * @return double
    */
-  static double calculateYaw(const pcl::PointCloud<PointT> & point)
+  static double calculateYaw(const PointT & point)
   {
     double yaw = std::atan2(point.y, point.x);
     return 0 < yaw ? yaw : yaw + 2 * M_PI;
@@ -116,44 +117,63 @@ private:
   pcl::PointCloud<PointT> executeRNR(const pcl::PointCloud<PointT> & in_cloud) const;
 
   /**
+   * @brief Sample initial seed points in each zone.
+   * For the nearest zone from sensor (zone=0), skip points that have too low value that will be
+   * used as threshold.
+   *
+   * @param zone_idx
+   * @param in_cloud
+   * @return pcl::PointCloud<Point>
+   */
+  pcl::PointCloud<PointT> sampleInitialSeed(
+    const int zone_idx, pcl::PointCloud<PointT> & in_cloud) const;
+
+  /**
    * @brief Execute Region-wise Plane Fitting.
    * 1. R-VPF (Region-wise Vertical Plane Fitting).
    * 2. R-GPF (Region-wise Ground Plane Fitting).
    *
    * @param zone_idx
    * @param zone_cloud
+   * @param ground_cloud
    * @param non_ground_cloud
    */
   void executeRPF(
-    const int zone_idx, const pcl::PointCloud<PointT> & zone_cloud,
-    pcl::PointCloud<PointT> & non_ground_cloud) const;
+    const int zone_idx, pcl::PointCloud<PointT> & zone_cloud,
+    pcl::PointCloud<PointT> & ground_cloud, pcl::PointCloud<PointT> & non_ground_cloud) const;
 
   /**
    * @brief PCA-based vertical plane estimation a.k.a R-VPF.
    *
-   * @param ground_cloud
+   * @param seed_cloud
+   * @param non_vertical_cloud
    * @param non_ground_cloud
    */
   void estimateVerticalPlane(
-    const pcl::PointCloud<PointT> & ground_cloud, pcl::PointCloud<PointT> & non_ground_cloud);
+    pcl::PointCloud<PointT> & seed_cloud, pcl::PointCloud<PointT> & non_vertical_cloud,
+    pcl::PointCloud<PointT> & non_ground_cloud) const;
 
   /**
    * @brief PCA-based ground plane estimation a.k.a R-GPF.
    *
+   * @param seed_cloud
    * @param ground_cloud
    * @param non_ground_cloud
    */
   void estimateGroundPlane(
-    const pcl::PointCloud<PointT> & ground_cloud, pcl::PointCloud<PointT> & non_ground_cloud);
+    pcl::PointCloud<PointT> & seed_cloud, pcl::PointCloud<PointT> & ground_cloud,
+    pcl::PointCloud<PointT> & non_ground_cloud) const;
 
   /**
-   * @brief Sample seed points.
+   * @brief Estimate Adaptive Ground Likelihood.
    *
-   * @param in_cloud
-   * @return pcl::PointCloud<Point>
    */
-  pcl::PointCloud<Point> sampleSeeds(const pcl::PointCloud<PointT> & in_cloud) const;
+  void estimateAGL();
 
+  /**
+   * @brief Execute Temporal Ground Revert.
+   *
+   */
   void executeTGR();
 
   /**
