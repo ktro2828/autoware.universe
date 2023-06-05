@@ -4,6 +4,7 @@
       sensor_height: 1.723
       min_range: 0.27
       max_range: 80.0
+      seed_selection_weight: -1.1
     rnr: # Reflected Noise Removal
       num_sample: 20
       min_height_threshold: -2.123 # init = -sensor_height + height_noise_margin
@@ -18,8 +19,9 @@
       elevation_thresholds: [0.0, 0.0, 0.0, 0.0]
       flatness_thresholds: [0.0, 0.0, 0.0, 0.0]
     rpf: # Region-wise Plane Fitting (R-VPF & R-GPF)
-      max_distance_threshold: 0.1
+      max_vertical_distance_threshold: 0.1
       max_angle_threshold: 0.707
+      max_distance_threshold: 0.1
       num_iterator: 3
       num_sample: 20
     gle: # Adaptive Ground Likelihood Estimation

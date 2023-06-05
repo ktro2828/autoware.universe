@@ -27,6 +27,7 @@ private:
   double sensor_height_;
   double min_range_;
   double max_range_;
+  double seed_selection_weight_;
 
 public:
   CommonParams() = delete;
@@ -38,6 +39,8 @@ public:
   double min_range() const { return min_range_; }
 
   double max_range() const { return max_range_; }
+
+  double lowest_z_in_close_zone() const { return sensor_height_ * seed_selection_weight_; }
 };
 
 class RNRParams
@@ -122,8 +125,9 @@ public:
 class RPFParams
 {
 private:
-  double max_distance_threshold_;
+  double max_vertical_distance_threshold_;
   double max_angle_threshold_;
+  double max_distance_threshold_;
   int num_iterator_;
   int num_sample_;
 
@@ -131,6 +135,8 @@ public:
   RPFParams() = delete;
 
   explicit RPFParams(const rclcpp::Node & node);
+
+  double max_vertical_distance_threshold() const { return max_vertical_distance_threshold_; }
 
   double max_distance_threshold() const { return max_distance_threshold_; }
 
