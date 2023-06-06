@@ -77,6 +77,10 @@ void PatchWorkPP::cloudCallback(sensor_msgs::msg::PointCloud2::ConstSharedPtr cl
 
         // 3. RPF
         executeRPF(zone_idx, zone_cloud, *ground_cloud_, *non_ground_cloud_);
+
+        const bool is_upright = v_normal_(2, 0) < gle_params_.uprightness_threshold();
+        const double elevation = centroid_(2, 0);
+        const double flatness = v_eigenvalues_(0);
       }
     }
   }
@@ -161,7 +165,8 @@ void PatchWorkPP::estimateVerticalPlane(
     // Compute eigenvalue(lambda1~3) and eigenvector(v1~3) for C(3x3)
     Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver(covariance_matrix_);
     // NOTE: The lowest eigenvector is v^k_3,n
-    Eigen::Vector3d v_normal_ = solver.eigenvectors().col(2).normalized();
+    v_normal_ = solver.eigenvectors().col(2).normalized();
+    v_eigenvalues_ = solver.eigenvalues();
     for (const auto & point : seed_cloud) {
       // [Eq.2] d = |(p - m^k_n) * v^k_3,n|
       // [Eq.3] PI / 2 - cos^(-1) (v^k_3,n * u_z)
@@ -191,7 +196,8 @@ void PatchWorkPP::estimateGroundPlane(
     // Compute eigenvalue(lambda1~3) and eigenvector(v1~3) for C(3x3)
     Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver(covariance_matrix_);
     // The lowest eigenvector is v^k_3,n
-    Eigen::Vector3d v_normal_ = solver.eigenvectors().col(0).normalized();
+    v_normal_ = solver.eigenvectors().col(0).normalized();
+    v_eigenvalues_ = solver.eigenvalues();
     for (const auto & point : seed_cloud) {
       Eigen::Vector3d p(point.x, point.y, point.z);
       auto distance = v_normal_.dot((p - centroid_.head<3>()).cwiseAbs());
