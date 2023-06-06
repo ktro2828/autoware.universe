@@ -102,6 +102,8 @@ void PatchWorkPP::cloudCallback(sensor_msgs::msg::PointCloud2::ConstSharedPtr cl
       }
     }
   }
+
+  publish(cloud_msg->header);
 }
 
 void PatchWorkPP::executeRNR(const pcl::PointCloud<PointT> & in_cloud) const
