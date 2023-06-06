@@ -3,10 +3,12 @@
   <arg name="input/points" default=""/>
   <arg name="output/points" default=""/>
   <arg name="param_file" default="$(find-pkg-share patrchworkpp)/config/params.yaml"/>
+  <arg name="debug" default="false"/>
 
   <node pkg="patchworkpp" exec="patchwork_pp" name="patchwork_pp" output="screen">
     <param name="input" value="$(var input/points)"/>
     <param name="output" value="$(var output/points)"/>
+    <param name="debug" value="$(var debug)"/>
     <param from="$(var param_file)"/>
   </node>
 </launch>

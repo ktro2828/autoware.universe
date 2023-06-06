@@ -49,6 +49,8 @@ private:
   GLEParams gle_params_;
   TGRParams tgr_params_;
 
+  bool debug_;
+
   pcl::PointCloud<PointT>::Ptr in_cloud_, ground_cloud_, non_ground_cloud_;
   std::vector<Zone> czm_;
 
@@ -61,7 +63,8 @@ private:
   std::vector<std::vector<double>> elevation_list_;
   std::vector<std::vector<double>> flatness_list_;
 
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_cloud_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_non_ground_cloud_,
+    pub_ground_cloud_;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_cloud_;
 
   struct TGRCandidate
@@ -74,6 +77,12 @@ private:
     {
     }
   };
+
+  void initializeDebugger()
+  {
+    pub_ground_cloud_ =
+      create_publisher<sensor_msgs::msg::PointCloud2>("~/debug/ground/pointcloud", 1);
+  }
 
   // TODO(ktro2828): use a util function from other package
   /**
