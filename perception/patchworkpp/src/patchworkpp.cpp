@@ -35,13 +35,18 @@ PatchWorkPP::PatchWorkPP(const rclcpp::NodeOptions & options)
 {
   std::string input_topic = declare_parameter<std::string>("input");
   std::string output_topic = declare_parameter<std::string>("output");
+  debug_ = declare_parameter<bool>("debug", false);
 
   elevation_list_.resize(czm_params_.num_zone());
   flatness_list_.resize(czm_params_.num_zone());
 
-  pub_cloud_ = create_publisher<sensor_msgs::msg::PointCloud2>(output_topic, 1);
+  pub_non_ground_cloud_ = create_publisher<sensor_msgs::msg::PointCloud2>(output_topic, 1);
   sub_cloud_ = create_subscription<sensor_msgs::msg::PointCloud2>(
     input_topic, 1, std::bind(&PatchWorkPP::cloudCallback, this, std::placeholders::_1));
+
+  if (debug_) {
+    initializeDebugger();
+  }
 }
 
 void PatchWorkPP::cloudCallback(sensor_msgs::msg::PointCloud2::ConstSharedPtr cloud_msg)
