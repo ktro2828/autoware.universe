@@ -25,6 +25,7 @@
       num_iterator: 3 # Number of iteration that Region-wise Plane Fitting is executed.
       num_sample: 20 # Number of initial seed points.
     gle: # Adaptive Ground Likelihood Estimation
+      uprightness_threshold: 0.707
       elevation_std_weights: [1.0, 1.0, 1.0, 1.0] # Weights of standard deviation that is used to update elevation for each zone.
       flatness_std_weights: [1.0, 2.0, 2.0, 2.0] # Weights of standard deviation that is used to update flatness for each zone.
       height_noise_margin: -0.5 # Margin that is used to update height noise threshold.

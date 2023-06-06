@@ -69,6 +69,7 @@ RPFParams::RPFParams(const rclcpp::Node & node)
 
 GLEParams::GLEParams(const rclcpp::Node & node)
 {
+  uprightness_threshold_ = node.declare_parameter<double>("gle.uprightness_threshold");
   elevation_std_weights_ = node.declare_parameter<double>("gle.elevation_std_weights");
   flatness_std_weights_ = node.declare_parameter<std::vector<double>>("gle.flatness_std_weights");
   height_noise_margin_ = node.declare_parameter<double>("gle.height_noise_margin");

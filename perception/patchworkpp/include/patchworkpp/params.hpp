@@ -150,6 +150,7 @@ public:
 class GLEParams
 {
 private:
+  double uprightness_threshold_;
   std::vector<double> elevation_std_weights_;
   std::vector<double> flatness_std_weights_;
   double height_noise_margin_;
@@ -158,6 +159,8 @@ public:
   GLEParams() = delete;
 
   explicit GLEParams(const rclcpp::Node & node);
+
+  double uprightness_threshold() const { return uprightness_threshold_; }
 
   const std::vector<double> elevation_std_weights() const { return elevation_std_weights_; }
   double elevation_std_weights(const size_t i) const { return elevation_std_weights_.at(i); }
