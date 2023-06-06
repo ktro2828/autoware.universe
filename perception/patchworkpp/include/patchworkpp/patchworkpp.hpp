@@ -55,6 +55,7 @@ private:
   Eigen::Matrix3d covariance_matrix_;
   Eigen::Vector4d centroid_;
   Eigen::Vector3d v_normal_;
+  Eigen::Vector3d v_eigenvalues_;
   Eigen::Vector3d u_normal_;
 
   std::vector<std::vector<double>> elevation_list_;
