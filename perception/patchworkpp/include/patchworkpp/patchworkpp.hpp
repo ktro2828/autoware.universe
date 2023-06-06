@@ -49,6 +49,14 @@ private:
   GLEParams gle_params_;
   TGRParams tgr_params_;
 
+  pcl::PointCloud<PointT>::Ptr in_cloud_, ground_cloud_, non_ground_cloud_;
+  std::vector<Zone> czm_;
+
+  Eigen::Matrix3d covariance_matrix_;
+  Eigen::Vector4d centroid_;
+  Eigen::Vector3d v_normal_;
+  Eigen::Vector3d u_normal_;
+
   std::vector<std::vector<double>> elevation_list_;
   std::vector<std::vector<double>> flatness_list_;
 
@@ -112,9 +120,8 @@ private:
    * @brief Execute Reflected Noise Removal a.k.a RNR.
    *
    * @param in_cloud
-   * @return pcl::PointCloud<PointT>
    */
-  pcl::PointCloud<PointT> executeRNR(const pcl::PointCloud<PointT> & in_cloud) const;
+  void executeRNR(const pcl::PointCloud<PointT> & in_cloud) const;
 
   /**
    * @brief Sample initial seed points in each zone.
@@ -140,7 +147,7 @@ private:
    */
   void executeRPF(
     const int zone_idx, pcl::PointCloud<PointT> & zone_cloud,
-    pcl::PointCloud<PointT> & ground_cloud, pcl::PointCloud<PointT> & non_ground_cloud) const;
+    pcl::PointCloud<PointT> & ground_cloud, pcl::PointCloud<PointT> & non_ground_cloud);
 
   /**
    * @brief PCA-based vertical plane estimation a.k.a R-VPF.
@@ -151,7 +158,7 @@ private:
    */
   void estimateVerticalPlane(
     pcl::PointCloud<PointT> & seed_cloud, pcl::PointCloud<PointT> & non_vertical_cloud,
-    pcl::PointCloud<PointT> & non_ground_cloud) const;
+    pcl::PointCloud<PointT> & non_ground_cloud);
 
   /**
    * @brief PCA-based ground plane estimation a.k.a R-GPF.
@@ -162,7 +169,7 @@ private:
    */
   void estimateGroundPlane(
     pcl::PointCloud<PointT> & seed_cloud, pcl::PointCloud<PointT> & ground_cloud,
-    pcl::PointCloud<PointT> & non_ground_cloud) const;
+    pcl::PointCloud<PointT> & non_ground_cloud);
 
   /**
    * @brief Estimate Adaptive Ground Likelihood.
@@ -198,11 +205,9 @@ private:
    * @brief Set input points to Concentric Zone Model a.k.a CZM.
    *
    * @param cloud
-   *
-   * @return std::vector<Zone>
    */
-  std::vector<Zone> pointCloud2CZM(
-    const pcl::PointCloud<PointT> & cloud, pcl::PointCloud<PointT> & non_ground_cloud) const;
+  void pointCloud2CZM(
+    const pcl::PointCloud<PointT> & cloud, pcl::PointCloud<PointT> & non_ground_cloud);
 
   /**
    * @brief Callback. Estimate ground and non-ground points.

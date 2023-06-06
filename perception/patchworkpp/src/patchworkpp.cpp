@@ -46,23 +46,27 @@ PatchWorkPP::PatchWorkPP(const rclcpp::NodeOptions & options)
 
 void PatchWorkPP::cloudCallback(sensor_msgs::msg::PointCloud2::ConstSharedPtr cloud_msg)
 {
-  pcl::PointCloud<PointT> in_cloud, ground_cloud;
-  pcl::fromROSMsg(*cloud_msg, in_cloud);
+  in_cloud_->clear();
+  ground_cloud_->clear();
+  non_ground_cloud_->clear();
+  czm_.clear();
+
+  pcl::fromROSMsg(*cloud_msg, *in_cloud_);
 
   // 1. RNR
-  pcl::PointCloud<PointT> non_ground_cloud = executeRNR(in_cloud);
+  executeRNR(*in_cloud_);
   // 2. CZM
-  std::vector<Zone> czm = pointCloud2CZM(in_cloud, non_ground_cloud);
+  pointCloud2CZM(*in_cloud_, *non_ground_cloud_);
 
   for (int zone_idx = 0; zone_idx < czm_params_.num_zone(); ++zone_idx) {
-    Zone zone = czm.at(zone_idx);
+    Zone zone = czm_.at(zone_idx);
     for (int ring_idx = 0; ring_idx < czm_params_.num_rings(zone_idx); ++ring_idx) {
       for (int sector_idx = 0; sector_idx < czm_params_.num_sectors(zone_idx); ++sector_idx) {
         pcl::PointCloud<PointT> & zone_cloud = zone.at(ring_idx).at(sector_idx);
         if (static_cast<int>(zone_cloud.points.size()) < czm_params_.min_num_points()) {
           std::for_each(
             zone_cloud.points.begin(), zone_cloud.points.end(),
-            [&](const auto & point) { non_ground_cloud.emplace_back(point); });
+            [&](const auto & point) { non_ground_cloud_->emplace_back(point); });
           continue;
         }
 
@@ -72,15 +76,14 @@ void PatchWorkPP::cloudCallback(sensor_msgs::msg::PointCloud2::ConstSharedPtr cl
           [](const PointT & pt1, const PointT & pt2) { return pt1.z < pt2.z; });
 
         // 3. RPF
-        executeRPF(zone_idx, zone_cloud, ground_cloud, non_ground_cloud);
+        executeRPF(zone_idx, zone_cloud, *ground_cloud_, *non_ground_cloud_);
       }
     }
   }
 }
 
-pcl::PointCloud<PointT> PatchWorkPP::executeRNR(const pcl::PointCloud<PointT> & in_cloud) const
+void PatchWorkPP::executeRNR(const pcl::PointCloud<PointT> & in_cloud) const
 {
-  pcl::PointCloud<PointT> non_ground_cloud;
   for (const auto & point : in_cloud) {
     double radius = calculateRadius(point);                            // [m]
     double incident_angle = std::atan2(point.z, radius) * 180 / M_PI;  // [deg]
@@ -88,10 +91,9 @@ pcl::PointCloud<PointT> PatchWorkPP::executeRNR(const pcl::PointCloud<PointT> & 
       point.z < rnr_params_.min_height_threshold() &&
       incident_angle < rnr_params_.min_vertical_angle_threshold() &&
       point.intensity < rnr_params_.min_intensity_threshold()) {
-      non_ground_cloud.emplace_back(point);
+      non_ground_cloud_->emplace_back(point);
     }
   }
-  return non_ground_cloud;
 }
 
 pcl::PointCloud<PointT> PatchWorkPP::sampleInitialSeed(
@@ -133,7 +135,7 @@ pcl::PointCloud<PointT> PatchWorkPP::sampleInitialSeed(
 
 void PatchWorkPP::executeRPF(
   const int zone_idx, pcl::PointCloud<PointT> & zone_cloud, pcl::PointCloud<PointT> & ground_cloud,
-  pcl::PointCloud<PointT> & non_ground_cloud) const
+  pcl::PointCloud<PointT> & non_ground_cloud)
 {
   // 1. R-VPF ... Extract vertical cloud as non-ground cloud from seed cloud
   auto seed_cloud1 = sampleInitialSeed(zone_idx, zone_cloud);
@@ -147,27 +149,25 @@ void PatchWorkPP::executeRPF(
 
 void PatchWorkPP::estimateVerticalPlane(
   pcl::PointCloud<PointT> & seed_cloud, pcl::PointCloud<PointT> & non_vertical_cloud,
-  pcl::PointCloud<PointT> & non_ground_cloud) const
+  pcl::PointCloud<PointT> & non_ground_cloud)
 {
   // Compute mean(m^k_n) and covariance(C)
   // TODO(ktro2828): Following variables can initialize in constructor
-  Eigen::Matrix3d covariance_matrix;
-  Eigen::Vector4d centroid;
   const Eigen::Vector3d u_z(0, 0, 1);
 
   for (int n = 0; n < rpf_params_.num_iterator(); ++n) {
     non_vertical_cloud.clear();
-    pcl::computeMeanAndCovarianceMatrix(seed_cloud, covariance_matrix, centroid);
+    pcl::computeMeanAndCovarianceMatrix(seed_cloud, covariance_matrix_, centroid_);
     // Compute eigenvalue(lambda1~3) and eigenvector(v1~3) for C(3x3)
-    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver(covariance_matrix);
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver(covariance_matrix_);
     // NOTE: The lowest eigenvector is v^k_3,n
-    Eigen::Vector3d v = solver.eigenvectors().col(2).normalized();
+    Eigen::Vector3d v_normal_ = solver.eigenvectors().col(2).normalized();
     for (const auto & point : seed_cloud) {
       // [Eq.2] d = |(p - m^k_n) * v^k_3,n|
       // [Eq.3] PI / 2 - cos^(-1) (v^k_3,n * u_z)
       Eigen::Vector3d p(point.x, point.y, point.z);
-      auto distance = v.dot((p - centroid.head<3>()).cwiseAbs());
-      auto angle = 0.5 * M_PI - std::acos(v.dot(u_z));
+      auto distance = v_normal_.dot((p - centroid_.head<3>()).cwiseAbs());
+      auto angle = 0.5 * M_PI - std::acos(v_normal_.dot(u_z));
       if (
         (distance < rpf_params_.max_vertical_distance_threshold()) &&
         angle < rpf_params_.max_angle_threshold()) {
@@ -182,23 +182,19 @@ void PatchWorkPP::estimateVerticalPlane(
 
 void PatchWorkPP::estimateGroundPlane(
   pcl::PointCloud<PointT> & seed_cloud, pcl::PointCloud<PointT> & ground_cloud,
-  pcl::PointCloud<PointT> & non_ground_cloud) const
+  pcl::PointCloud<PointT> & non_ground_cloud)
 {
   // Compute mean(m^k_n) and covariance(C)
-  // TODO(ktro2828): Following variables can initialize in constructor
-  Eigen::Matrix3d covariance_matrix;
-  Eigen::Vector4d centroid;
-
   for (int n = 0; n < rpf_params_.num_iterator(); ++n) {
     ground_cloud.clear();
-    pcl::computeMeanAndCovarianceMatrix(seed_cloud, covariance_matrix, centroid);
+    pcl::computeMeanAndCovarianceMatrix(seed_cloud, covariance_matrix_, centroid_);
     // Compute eigenvalue(lambda1~3) and eigenvector(v1~3) for C(3x3)
-    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver(covariance_matrix);
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver(covariance_matrix_);
     // The lowest eigenvector is v^k_3,n
-    Eigen::Vector3d v = solver.eigenvectors().col(0).normalized();
+    Eigen::Vector3d v_normal_ = solver.eigenvectors().col(0).normalized();
     for (const auto & point : seed_cloud) {
       Eigen::Vector3d p(point.x, point.y, point.z);
-      auto distance = v.dot((p - centroid.head<3>()).cwiseAbs());
+      auto distance = v_normal_.dot((p - centroid_.head<3>()).cwiseAbs());
       if (distance < rpf_params_.max_distance_threshold()) {
         non_ground_cloud.emplace_back(point);
       } else {
@@ -243,11 +239,9 @@ void PatchWorkPP::updateHeightThreshold()
   rnr_params_.updateHeightThreshold(new_threshold);
 }
 
-std::vector<Zone> PatchWorkPP::pointCloud2CZM(
-  const pcl::PointCloud<PointT> & cloud, pcl::PointCloud<PointT> & non_ground_cloud) const
+void PatchWorkPP::pointCloud2CZM(
+  const pcl::PointCloud<PointT> & cloud, pcl::PointCloud<PointT> & non_ground_cloud)
 {
-  // NOTE: It might be better to initialize CZM and define it as member variable.
-  std::vector<Zone> czm;
   for (const auto & point : cloud) {
     // TODO(ktro2828): use a util function from other package
     double radius = calculateRadius(point);
@@ -273,9 +267,8 @@ std::vector<Zone> PatchWorkPP::pointCloud2CZM(
       int64_t sector_idx =
         std::min(static_cast<int64_t>(yaw / sector_size), czm_params_.num_sectors(i - 1) - 1);
 
-      czm[i - 1][ring_idx][sector_idx].points.emplace_back(point);
+      czm_[i - 1][ring_idx][sector_idx].points.emplace_back(point);
     }
   }
-  return czm;
 }
 }  // namespace patchwork_pp
