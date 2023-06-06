@@ -78,9 +78,22 @@ void PatchWorkPP::cloudCallback(sensor_msgs::msg::PointCloud2::ConstSharedPtr cl
         // 3. RPF
         executeRPF(zone_idx, zone_cloud, *ground_cloud_, *non_ground_cloud_);
 
-        const bool is_upright = v_normal_(2, 0) < gle_params_.uprightness_threshold();
+        // 4. A-GLE
+        // TODO(ktro2828): update A-GLE and TGR
+        const double uprightness = v_normal_(2, 0);
         const double elevation = centroid_(2, 0);
         const double flatness = v_eigenvalues_(0);
+
+        const int concentric_idx = zone_idx + ring_idx + sector_idx;
+        const bool is_upright = gle_params_.uprightness_threshold() < uprightness;
+        const bool is_elevated = elevation < czm_params_.elevation_thresholds(concentric_idx);
+        const bool is_flat = flatness < czm_params_.flatness_thresholds(concentric_idx);
+
+        if (!is_upright) {
+          non_ground_cloud_->insert(
+            non_ground_cloud_->end(), ground_cloud_->begin(), ground_cloud_->end());
+          continue;
+        }
       }
     }
   }
@@ -208,6 +221,20 @@ void PatchWorkPP::estimateGroundPlane(
       }
     }
     pcl::copyPointCloud(ground_cloud, seed_cloud);
+  }
+}
+
+void PatchWorkPP::executeTGR(
+  std::vector<double> & ring_flatness, std::vector<TGRCandidate> & candidates)
+{
+  // TODO(ktro2828): update TGR
+  const auto & [mean_flatness, std_flatness] = calculateMeanStd();
+  const double flatness_t = mean_flatness + tgr_params_.std_weight() * std_flatness;
+  for (auto & candidate : candidates) {
+    // PatchWork p.5
+    // P_e = r_n < L_t ? 1 / (1 + exp^(e_t - z_n) : 1 (10)
+    // P_f = P_e < 0.5 ? zeta * exp^(f_t - f_n) : 1   (11)
+    const double prob = std::exp(flatness_t - candidate.flatness);
   }
 }
 
