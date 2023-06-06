@@ -21,6 +21,7 @@
 #include <rclcpp/rclcpp.hpp>
 
 #include <sensor_msgs/msg/point_cloud2.hpp>
+#include <std_msgs/msg/header.hpp>
 
 #include <math.h>
 #include <pcl/common/common.h>
@@ -82,6 +83,21 @@ private:
   {
     pub_ground_cloud_ =
       create_publisher<sensor_msgs::msg::PointCloud2>("~/debug/ground/pointcloud", 1);
+  }
+
+  void publish(const std_msgs::msg::Header & header) const
+  {
+    sensor_msgs::msg::PointCloud2 non_ground_cloud_msg;
+    pcl::toROSMsg(*non_ground_cloud_, non_ground_cloud_msg);
+    non_ground_cloud_msg.header = header;
+    pub_ground_cloud_->publish(non_ground_cloud_msg);
+
+    if (debug_) {
+      sensor_msgs::msg::PointCloud2 ground_cloud_msg;
+      pcl::toROSMsg(*ground_cloud_, ground_cloud_msg);
+      ground_cloud_msg.header = header;
+      pub_ground_cloud_->publish(ground_cloud_msg);
+    }
   }
 
   // TODO(ktro2828): use a util function from other package
