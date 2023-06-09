@@ -25,6 +25,7 @@
 
 #include <math.h>
 #include <pcl/common/common.h>
+#include <pcl_conversions/pcl_conversions.h>
 
 #include <numeric>
 #include <utility>
@@ -41,6 +42,17 @@ class PatchWorkPP : public rclcpp::Node
 {
 public:
   explicit PatchWorkPP(const rclcpp::NodeOptions & options);
+
+  struct TGRCandidate
+  {
+    const double flatness;
+    const pcl::PointCloud<PointT> ground_cloud;
+
+    TGRCandidate(const double _flatness, const pcl::PointCloud<PointT> & _ground_cloud)
+    : flatness(_flatness), ground_cloud(_ground_cloud)
+    {
+    }
+  };
 
 private:
   CommonParams common_params_;
@@ -67,17 +79,6 @@ private:
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_non_ground_cloud_,
     pub_ground_cloud_;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_cloud_;
-
-  struct TGRCandidate
-  {
-    const double flatness;
-    const pcl::PointCloud<PointT> ground_cloud;
-
-    TGRCandidate(const double _flatness, const pcl::PointCloud<PointT> & _ground_cloud)
-    : flatness(_flatness), ground_cloud(_ground_cloud)
-    {
-    }
-  };
 
   void initializeDebugger()
   {
@@ -129,10 +130,6 @@ private:
    */
   static std::pair<double, double> calculateMeanStd(const std::vector<double> & values)
   {
-    // if (values.size() <= 1) {
-    //   return {0.0, 0.0};
-    // }
-
     double mean = std::accumulate(values.begin(), values.end(), 0.0) / values.size();
 
     double std_dev = std::accumulate(
@@ -198,16 +195,12 @@ private:
     pcl::PointCloud<PointT> & non_ground_cloud);
 
   /**
-   * @brief Estimate Adaptive Ground Likelihood.
+   * @brief
    *
+   * @param candidates
+   * @param zone_flatness
    */
-  void estimateAGL();
-
-  /**
-   * @brief Execute Temporal Ground Revert.
-   *
-   */
-  void executeTGR();
+  void executeTGR(std::vector<TGRCandidate> & candidates, std::vector<double> & zone_flatness);
 
   /**
    * @brief Update elevation thresholds. In paper p5, e <- mean(E)  + a * std_dev(E).

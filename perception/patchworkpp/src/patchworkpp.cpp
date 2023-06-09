@@ -15,12 +15,10 @@
 #include "patchworkpp/patchworkpp.hpp"
 
 #include <Eigen/Dense>
+#include <rclcpp_components/register_node_macro.hpp>
 
 #include <pcl/common/centroid.h>
 #include <pcl/common/io.h>
-#include <pcl_conversions/pcl_conversions.h>
-
-#include <numeric>
 
 namespace patchwork_pp
 {
@@ -63,6 +61,8 @@ void PatchWorkPP::cloudCallback(sensor_msgs::msg::PointCloud2::ConstSharedPtr cl
   // 2. CZM
   pointCloud2CZM(*in_cloud_, *non_ground_cloud_);
 
+  std::vector<TGRCandidate> candidates;
+  std::vector<double> zone_flatness;
   for (int zone_idx = 0; zone_idx < czm_params_.num_zone(); ++zone_idx) {
     Zone zone = czm_.at(zone_idx);
     for (int ring_idx = 0; ring_idx < czm_params_.num_rings(zone_idx); ++ring_idx) {
@@ -89,19 +89,39 @@ void PatchWorkPP::cloudCallback(sensor_msgs::msg::PointCloud2::ConstSharedPtr cl
         const double elevation = centroid_(2, 0);
         const double flatness = v_eigenvalues_(0);
 
-        const int concentric_idx = zone_idx + ring_idx + sector_idx;
         const bool is_upright = gle_params_.uprightness_threshold() < uprightness;
-        const bool is_elevated = elevation < czm_params_.elevation_thresholds(concentric_idx);
-        const bool is_flat = flatness < czm_params_.flatness_thresholds(concentric_idx);
+        const bool is_not_elevated = zone_idx < czm_params_.num_zone()
+                                       ? elevation < czm_params_.elevation_thresholds(zone_idx)
+                                       : false;
+        const bool is_flat = zone_idx < czm_params_.num_zone()
+                               ? flatness < czm_params_.flatness_thresholds(zone_idx)
+                               : false;
+
+        if (is_upright && is_not_elevated && is_flat) {
+          elevation_list_[zone_idx].push_back(elevation);
+          flatness_list_[zone_idx].push_back(flatness);
+          zone_flatness.push_back(flatness);
+        }
 
         if (!is_upright) {
           non_ground_cloud_->insert(
             non_ground_cloud_->end(), ground_cloud_->begin(), ground_cloud_->end());
-          continue;
+        } else {
+          TGRCandidate candidate(flatness, *ground_cloud_);
+          candidates.emplace_back(candidate);
         }
+      }
+
+      if (!candidates.empty()) {
+        executeTGR(candidates, zone_flatness);
+        candidates.clear();
+        zone_flatness.clear();
       }
     }
   }
+  updateElevationThresholds();
+  updateFlatnessThresholds();
+  updateHeightThreshold();
 
   publish(cloud_msg->header);
 }
@@ -232,16 +252,23 @@ void PatchWorkPP::estimateGroundPlane(
 }
 
 void PatchWorkPP::executeTGR(
-  std::vector<double> & ring_flatness, std::vector<TGRCandidate> & candidates)
+  std::vector<TGRCandidate> & candidates, std::vector<double> & zone_flatness)
 {
   // TODO(ktro2828): update TGR
-  const auto & [mean_flatness, std_flatness] = calculateMeanStd();
+  const auto & [mean_flatness, std_flatness] = calculateMeanStd(zone_flatness);
   const double flatness_t = mean_flatness + tgr_params_.std_weight() * std_flatness;
   for (auto & candidate : candidates) {
     // PatchWork p.5
     // P_e = r_n < L_t ? 1 / (1 + exp^(e_t - z_n) : 1 (10)
     // P_f = P_e < 0.5 ? zeta * exp^(f_t - f_n) : 1   (11)
-    const double prob = std::exp(flatness_t - candidate.flatness);
+    const double prob = 1 / (1 + std::exp((candidate.flatness - flatness_t) - (flatness_t / 10)));
+    if (0.5 < prob) {
+      ground_cloud_->insert(
+        ground_cloud_->end(), candidate.ground_cloud.begin(), candidate.ground_cloud.end());
+    } else {
+      non_ground_cloud_->insert(
+        non_ground_cloud_->end(), candidate.ground_cloud.begin(), candidate.ground_cloud.end());
+    }
   }
 }
 
@@ -311,4 +338,7 @@ void PatchWorkPP::pointCloud2CZM(
     }
   }
 }
+
+RCLCPP_COMPONENTS_REGISTER_NODE(PatchWorkPP);
+
 }  // namespace patchwork_pp
