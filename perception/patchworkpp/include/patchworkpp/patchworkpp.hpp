@@ -33,16 +33,16 @@
 
 namespace patchwork_pp
 {
-
-using PointT = pcl::PointXYZI;
-using Ring = std::vector<pcl::PointCloud<PointT>>;
-using Zone = std::vector<Ring>;
-
 class PatchWorkPP : public rclcpp::Node
 {
 public:
-  explicit PatchWorkPP(const rclcpp::NodeOptions & options);
+  using PointT = pcl::PointXYZI;
+  using Ring = std::vector<pcl::PointCloud<PointT>>;
+  using Zone = std::vector<Ring>;
 
+  /**
+   * @brief Candidate of temporal ground revert.
+   */
   struct TGRCandidate
   {
     const double flatness;
@@ -53,6 +53,8 @@ public:
     {
     }
   };
+
+  explicit PatchWorkPP(const rclcpp::NodeOptions & options);
 
 private:
   CommonParams common_params_;
@@ -71,7 +73,7 @@ private:
   Eigen::Vector4d centroid_;
   Eigen::Vector3d v_normal_;
   Eigen::Vector3d v_eigenvalues_;
-  Eigen::Vector3d u_normal_;
+  const Eigen::Vector3d u_normal_(0, 0, 1);
 
   std::vector<std::vector<double>> elevation_list_;
   std::vector<std::vector<double>> flatness_list_;
