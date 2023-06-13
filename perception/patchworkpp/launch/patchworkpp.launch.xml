@@ -2,7 +2,7 @@
 <launch>
   <arg name="input/points" default=""/>
   <arg name="output/points" default=""/>
-  <arg name="param_file" default="$(find-pkg-share patrchworkpp)/config/params.yaml"/>
+  <arg name="param_file" default="$(find-pkg-share patchworkpp)/config/params.yaml"/>
   <arg name="debug" default="false"/>
 
   <node pkg="patchworkpp" exec="patchwork_pp" name="patchwork_pp" output="screen">

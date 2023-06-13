@@ -32,7 +32,7 @@ private:
 public:
   CommonParams() = delete;
 
-  explicit CommonParams(const rclcpp::Node & node);
+  explicit CommonParams(rclcpp::Node * node);
 
   double sensor_height() const { return sensor_height_; }
 
@@ -54,7 +54,7 @@ private:
 public:
   RNRParams() = delete;
 
-  explicit RNRParams(const rclcpp::Node & node);
+  explicit RNRParams(rclcpp::Node * node);
 
   int num_sample() const { return num_sample_; }
 
@@ -77,14 +77,13 @@ private:
   std::vector<int64_t> num_rings_;
   std::vector<double> elevation_thresholds_;
   std::vector<double> flatness_thresholds_;
-  // TODO(ktro2828): sector sizes and ring_sizes is initialized with num_sectors and num_rings
   std::vector<double> sector_sizes_;
   std::vector<double> ring_sizes_;
 
 public:
   CZMParams() = delete;
 
-  explicit CZMParams(const rclcpp::Node & node);
+  explicit CZMParams(rclcpp::Node * node);
 
   int num_zone() const { return num_zone_; }
 
@@ -134,7 +133,7 @@ private:
 public:
   RPFParams() = delete;
 
-  explicit RPFParams(const rclcpp::Node & node);
+  explicit RPFParams(rclcpp::Node * node);
 
   double max_vertical_distance_threshold() const { return max_vertical_distance_threshold_; }
 
@@ -158,7 +157,7 @@ private:
 public:
   GLEParams() = delete;
 
-  explicit GLEParams(const rclcpp::Node & node);
+  explicit GLEParams(rclcpp::Node * node);
 
   double uprightness_threshold() const { return uprightness_threshold_; }
 
@@ -179,7 +178,7 @@ private:
 public:
   TGRParams() = delete;
 
-  explicit TGRParams(const rclcpp::Node & node);
+  explicit TGRParams(rclcpp::Node * node);
 
   double std_weight() const { return std_weight_; }
 };

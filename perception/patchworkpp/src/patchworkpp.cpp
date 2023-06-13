@@ -87,7 +87,7 @@ void PatchWorkPP::cloudCallback(sensor_msgs::msg::PointCloud2::ConstSharedPtr cl
         // TODO(ktro2828): update A-GLE and TGR
         const double uprightness = v_normal_(2, 0);
         const double elevation = centroid_(2, 0);
-        const double flatness = v_eigenvalues_(0);
+        const double flatness = v_eigenvalues_(2);
 
         const bool is_upright = gle_params_.uprightness_threshold() < uprightness;
         const bool is_not_elevated = zone_idx < czm_params_.num_zone()
@@ -196,15 +196,11 @@ void PatchWorkPP::estimateVerticalPlane(
   pcl::PointCloud<PointT> & non_ground_cloud)
 {
   // Compute mean(m^k_n) and covariance(C)
-  // TODO(ktro2828): Following variables can initialize in constructor
-  const Eigen::Vector3d u_z(0, 0, 1);
-
   for (int n = 0; n < rpf_params_.num_iterator(); ++n) {
     non_vertical_cloud.clear();
     pcl::computeMeanAndCovarianceMatrix(seed_cloud, covariance_matrix_, centroid_);
     // Compute eigenvalue(lambda1~3) and eigenvector(v1~3) for C(3x3)
     Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver(covariance_matrix_);
-    // NOTE: The lowest eigenvector is v^k_3,n
     v_normal_ = solver.eigenvectors().col(2).normalized();
     v_eigenvalues_ = solver.eigenvalues();
     for (const auto & point : seed_cloud) {
@@ -212,7 +208,7 @@ void PatchWorkPP::estimateVerticalPlane(
       // [Eq.3] PI / 2 - cos^(-1) (v^k_3,n * u_z)
       Eigen::Vector3d p(point.x, point.y, point.z);
       auto distance = v_normal_.dot((p - centroid_.head<3>()).cwiseAbs());
-      auto angle = 0.5 * M_PI - std::acos(v_normal_.dot(u_z));
+      auto angle = 0.5 * M_PI - std::acos(v_normal_.dot(u_normal_));
       if (
         (distance < rpf_params_.max_vertical_distance_threshold()) &&
         angle < rpf_params_.max_angle_threshold()) {
