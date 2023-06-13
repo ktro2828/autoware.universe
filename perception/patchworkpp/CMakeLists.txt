@@ -15,10 +15,10 @@ ament_auto_find_build_dependencies()
 
 include_directories(include SYSTEM ${PCL_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS})
 
-ament_auto_add_library(patchwork_pp SHARED src/patchworkpp.cpp)
-target_link_libraries(patchwork_pp ${PCL_LIBRARIES})
-rclcpp_components_register_node(patchwork_pp PLUGIN "PatchWorkPP" EXECUTABLE
-                                patchwork_pp_node)
+ament_auto_add_library(patchwork_pp_node SHARED src/patchworkpp.cpp)
+target_link_libraries(patchwork_pp_node ${PCL_LIBRARIES})
+rclcpp_components_register_node(patchwork_pp_node PLUGIN "PatchWorkPP" EXECUTABLE
+                                patchwork_pp)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
