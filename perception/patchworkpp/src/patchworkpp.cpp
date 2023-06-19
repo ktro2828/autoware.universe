@@ -24,12 +24,12 @@ namespace patchwork_pp
 {
 PatchWorkPP::PatchWorkPP(const rclcpp::NodeOptions & options)
 : rclcpp::Node("patchwork_pp", options),
-  common_params_(*this),
-  rnr_params_(*this),
-  czm_params_(*this),
-  rpf_params_(*this),
-  gle_params_(*this),
-  tgr_params_(*this)
+  common_params_(this),
+  rnr_params_(this),
+  czm_params_(this),
+  rpf_params_(this),
+  gle_params_(this),
+  tgr_params_(this)
 {
   std::string input_topic = declare_parameter<std::string>("input");
   std::string output_topic = declare_parameter<std::string>("output");
