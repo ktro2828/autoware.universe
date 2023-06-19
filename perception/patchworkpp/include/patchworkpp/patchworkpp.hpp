@@ -82,12 +82,21 @@ private:
     pub_ground_cloud_;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_cloud_;
 
+  /**
+   * @brief Initialize debugger to publish ground cloud, if `debug=true`.
+   *
+   */
   void initializeDebugger()
   {
     pub_ground_cloud_ =
       create_publisher<sensor_msgs::msg::PointCloud2>("~/debug/ground/pointcloud", 1);
   }
 
+  /**
+   * @brief Publish non-ground cloud, and also publish ground cloud, if `debug=true`.
+   *
+   * @param header
+   */
   void publish(const std_msgs::msg::Header & header) const
   {
     sensor_msgs::msg::PointCloud2 non_ground_cloud_msg;
