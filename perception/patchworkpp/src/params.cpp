@@ -14,6 +14,8 @@
 
 #include "patchworkpp/params.hpp"
 
+#include <rcpputils/asserts.hpp>
+
 #include <math.h>
 
 namespace patchwork_pp
@@ -45,6 +47,37 @@ CZMParams::CZMParams(rclcpp::Node * node)
   elevation_thresholds_ = node->declare_parameter<std::vector<double>>("czm.elevation_thresholds");
   flatness_thresholds_ = node->declare_parameter<std::vector<double>>("czm.flatness_thresholds");
 
+  if (num_zone_ != static_cast<int>(min_zone_ranges_.size())) {
+    RCLCPP_ERROR_STREAM(
+      node->get_logger(),
+      "Expected `min_zone_ranges` has the same number of elements as `num_zone`, but got "
+        << min_zone_ranges_.size() << " and " << num_zone_);
+  }
+  if (num_zone_ != static_cast<int>(num_sectors_.size())) {
+    RCLCPP_ERROR_STREAM(
+      node->get_logger(),
+      "Expected `num_sectors` has the same number of elements as `num_zone`, but got "
+        << num_sectors_.size() << " and " << num_zone_);
+  }
+  if (num_zone_ != static_cast<int>(num_rings_.size())) {
+    RCLCPP_ERROR_STREAM(
+      node->get_logger(),
+      "Expected `num_rings` has the same number of elements as `num_zone`, but got "
+        << num_rings_.size() << " and " << num_zone_);
+  }
+  if (num_zone_ != static_cast<int>(elevation_thresholds_.size())) {
+    RCLCPP_ERROR_STREAM(
+      node->get_logger(),
+      "Expected `elevation_thresholds` has the same number of elements as `num_zone`, but got "
+        << elevation_thresholds_.size() << " and " << num_zone_);
+  }
+  if (num_zone_ != static_cast<int>(flatness_thresholds_.size())) {
+    RCLCPP_ERROR_STREAM(
+      node->get_logger(),
+      "Expected `flatness_thresholds` has the same number of elements as `num_zone`, but got "
+        << flatness_thresholds_.size() << " and " << num_zone_);
+  }
+
   for (const auto & num : num_sectors_) {
     sector_sizes_.push_back(2 * M_PI / num);
   }
@@ -53,8 +86,6 @@ CZMParams::CZMParams(rclcpp::Node * node)
     ring_sizes_.push_back(
       min_zone_ranges_.at(i) - min_zone_ranges_.at(i - 1) / num_rings_.at(i - 1));
   }
-
-  // TODO(ktro2828): validate num_zone and size of each vector is same.
 }
 
 RPFParams::RPFParams(rclcpp::Node * node)
