@@ -35,8 +35,8 @@ PatchWorkPP::PatchWorkPP(const rclcpp::NodeOptions & options)
   std::string output_topic = declare_parameter<std::string>("output");
   debug_ = declare_parameter<bool>("debug", false);
 
-  elevation_list_.resize(czm_params_.num_zone());
-  flatness_list_.resize(czm_params_.num_zone());
+  elevation_buffer_.resize(czm_params_.num_zone());
+  flatness_buffer_.resize(czm_params_.num_zone());
 
   pub_non_ground_cloud_ = create_publisher<sensor_msgs::msg::PointCloud2>(output_topic, 1);
   sub_cloud_ = create_subscription<sensor_msgs::msg::PointCloud2>(
@@ -98,8 +98,8 @@ void PatchWorkPP::cloudCallback(sensor_msgs::msg::PointCloud2::ConstSharedPtr cl
                                : false;
 
         if (is_upright && is_not_elevated && is_flat) {
-          elevation_list_[zone_idx].push_back(elevation);
-          flatness_list_[zone_idx].push_back(flatness);
+          elevation_buffer_[zone_idx].push_back(elevation);
+          flatness_buffer_[zone_idx].push_back(flatness);
           zone_flatness.push_back(flatness);
         }
 
@@ -107,16 +107,17 @@ void PatchWorkPP::cloudCallback(sensor_msgs::msg::PointCloud2::ConstSharedPtr cl
           non_ground_cloud_->insert(
             non_ground_cloud_->end(), ground_cloud_->begin(), ground_cloud_->end());
         } else {
-          TGRCandidate candidate(flatness, *ground_cloud_);
+          // TODO(ktro2828): input ground cloud must be belong to for each sector
+          TGRCandidate candidate(zone_idx, flatness, *ground_cloud_);
           candidates.emplace_back(candidate);
         }
       }
+    }
 
-      if (!candidates.empty()) {
-        executeTGR(candidates, zone_flatness);
-        candidates.clear();
-        zone_flatness.clear();
-      }
+    if (!candidates.empty()) {
+      executeTGR(candidates, zone_flatness);
+      candidates.clear();
+      zone_flatness.clear();
     }
   }
   updateElevationThresholds();
@@ -204,8 +205,8 @@ void PatchWorkPP::estimateVerticalPlane(
     v_normal_ = solver.eigenvectors().col(2).normalized();
     v_eigenvalues_ = solver.eigenvalues();
     for (const auto & point : seed_cloud) {
-      // [Eq.2] d = |(p - m^k_n) * v^k_3,n|
-      // [Eq.3] PI / 2 - cos^(-1) (v^k_3,n * u_z)
+      // d = |(p - m^k_n) * v^k_3,n|        ... eq(2)
+      // PI / 2 - cos^(-1) (v^k_3,n * u_z)  ... eq(3)
       Eigen::Vector3d p(point.x, point.y, point.z);
       auto distance = v_normal_.dot((p - centroid_.head<3>()).cwiseAbs());
       auto angle = 0.5 * M_PI - std::acos(v_normal_.dot(u_normal_));
@@ -250,15 +251,11 @@ void PatchWorkPP::estimateGroundPlane(
 void PatchWorkPP::executeTGR(
   std::vector<TGRCandidate> & candidates, std::vector<double> & zone_flatness)
 {
-  // TODO(ktro2828): update TGR
+  // Calculate mean(Fm^t) and stddev(Fm^t) ... eq(8)
   const auto & [mean_flatness, std_flatness] = calculateMeanStd(zone_flatness);
   const double flatness_t = mean_flatness + tgr_params_.std_weight() * std_flatness;
   for (auto & candidate : candidates) {
-    // PatchWork p.5
-    // P_e = r_n < L_t ? 1 / (1 + exp^(e_t - z_n) : 1 (10)
-    // P_f = P_e < 0.5 ? zeta * exp^(f_t - f_n) : 1   (11)
-    const double prob = 1 / (1 + std::exp((candidate.flatness - flatness_t) - (flatness_t / 10)));
-    if (0.5 < prob) {
+    if (candidate.flatness < flatness_t) {
       ground_cloud_->insert(
         ground_cloud_->end(), candidate.ground_cloud.begin(), candidate.ground_cloud.end());
     } else {
@@ -270,34 +267,36 @@ void PatchWorkPP::executeTGR(
 
 void PatchWorkPP::updateElevationThresholds()
 {
-  for (int i = 0; i < czm_params_.num_zone(); ++i) {
-    if (elevation_list_.at(i).empty()) {
+  for (int m = 0; m < czm_params_.num_zone(); ++m) {
+    if (elevation_buffer_.at(m).empty()) {
       return;
     }
-    const auto & [mean, std_dev] = calculateMeanStd(elevation_list_.at(i));
-    double new_threshold = mean + gle_params_.elevation_std_weights(i) * std_dev;
-    czm_params_.updateElevationThreshold(i, new_threshold);
+    // Calculate mean(Em) and stddev(Em) ... eq(5)
+    const auto & [mean, std_dev] = calculateMeanStd(elevation_buffer_.at(m));
+    double new_threshold = mean + gle_params_.elevation_std_weights(m) * std_dev;
+    czm_params_.updateElevationThreshold(m, new_threshold);
   }
 }
 
 void PatchWorkPP::updateFlatnessThresholds()
 {
-  for (int i = 0; i < czm_params_.num_zone(); ++i) {
-    if (flatness_list_.at(i).empty()) {
+  for (int m = 0; m < czm_params_.num_zone(); ++m) {
+    if (flatness_buffer_.at(m).empty()) {
       return;
     }
-    const auto & [mean, std_dev] = calculateMeanStd(flatness_list_.at(i));
-    double new_threshold = mean + gle_params_.flatness_std_weights(i) * std_dev;
-    czm_params_.updateFlatnessThreshold(i, new_threshold);
+    // Calculate mean(Fm) and stddev(Fm) ... eq(6)
+    const auto & [mean, std_dev] = calculateMeanStd(flatness_buffer_.at(m));
+    double new_threshold = mean + gle_params_.flatness_std_weights(m) * std_dev;
+    czm_params_.updateFlatnessThreshold(m, new_threshold);
   }
 }
 
 void PatchWorkPP::updateHeightThreshold()
 {
-  if (elevation_list_.at(0).empty()) {
+  if (elevation_buffer_.at(0).empty()) {
     return;
   }
-  const auto & [mean, std_dev] = calculateMeanStd(elevation_list_.at(0));
+  const auto & [mean, std_dev] = calculateMeanStd(elevation_buffer_.at(0));
   double new_threshold = mean + gle_params_.height_noise_margin();
   rnr_params_.updateHeightThreshold(new_threshold);
 }

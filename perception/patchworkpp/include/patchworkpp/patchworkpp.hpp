@@ -45,11 +45,13 @@ public:
    */
   struct TGRCandidate
   {
+    const int zone_idx;
     const double flatness;
     const pcl::PointCloud<PointT> ground_cloud;
 
-    TGRCandidate(const double _flatness, const pcl::PointCloud<PointT> & _ground_cloud)
-    : flatness(_flatness), ground_cloud(_ground_cloud)
+    explicit TGRCandidate(
+      const int _zone_idx, const double _flatness, const pcl::PointCloud<PointT> & _ground_cloud)
+    : zone_idx(_zone_idx), flatness(_flatness), ground_cloud(_ground_cloud)
     {
     }
   };
@@ -75,8 +77,9 @@ private:
   Eigen::Vector3d v_eigenvalues_;
   const Eigen::Vector3d u_normal_{Eigen::Vector3d(0, 0, 1)};
 
-  std::vector<std::vector<double>> elevation_list_;
-  std::vector<std::vector<double>> flatness_list_;
+  /* Buffer of elevation and flatness for each n-th sector*/
+  std::vector<std::vector<double>> elevation_buffer_;
+  std::vector<std::vector<double>> flatness_buffer_;
 
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_non_ground_cloud_,
     pub_ground_cloud_;
