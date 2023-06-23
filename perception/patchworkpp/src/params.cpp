@@ -40,7 +40,8 @@ RNRParams::RNRParams(rclcpp::Node * node)
 CZMParams::CZMParams(rclcpp::Node * node)
 {
   num_zone_ = node->declare_parameter<int>("czm.num_zone");
-  min_num_points_ = node->declare_parameter<int>("czm.min_num_points");
+  num_near_ring_ = node->declare_parameter<int>("czm.num_near_ring");
+  min_num_point_ = node->declare_parameter<int>("czm.min_num_point");
   min_zone_ranges_ = node->declare_parameter<std::vector<double>>("czm.min_zone_ranges");
   num_sectors_ = node->declare_parameter<std::vector<int64_t>>("czm.num_sectors");
   num_rings_ = node->declare_parameter<std::vector<int64_t>>("czm.num_rings");
@@ -65,16 +66,16 @@ CZMParams::CZMParams(rclcpp::Node * node)
       "Expected `num_rings` has the same number of elements as `num_zone`, but got "
         << num_rings_.size() << " and " << num_zone_);
   }
-  if (num_zone_ != static_cast<int>(elevation_thresholds_.size())) {
+  if (num_near_ring_ != static_cast<int>(elevation_thresholds_.size())) {
     RCLCPP_ERROR_STREAM(
       node->get_logger(),
-      "Expected `elevation_thresholds` has the same number of elements as `num_zone`, but got "
+      "Expected `elevation_thresholds` has the same number of elements as `num_near_ring`, but got "
         << elevation_thresholds_.size() << " and " << num_zone_);
   }
-  if (num_zone_ != static_cast<int>(flatness_thresholds_.size())) {
+  if (num_near_ring_ != static_cast<int>(flatness_thresholds_.size())) {
     RCLCPP_ERROR_STREAM(
       node->get_logger(),
-      "Expected `flatness_thresholds` has the same number of elements as `num_zone`, but got "
+      "Expected `flatness_thresholds` has the same number of elements as `num_near_ring`, but got "
         << flatness_thresholds_.size() << " and " << num_zone_);
   }
 
@@ -105,6 +106,12 @@ GLEParams::GLEParams(rclcpp::Node * node)
     node->declare_parameter<std::vector<double>>("gle.elevation_std_weights");
   flatness_std_weights_ = node->declare_parameter<std::vector<double>>("gle.flatness_std_weights");
   height_noise_margin_ = node->declare_parameter<double>("gle.height_noise_margin");
+  buffer_storage_ = node->declare_parameter<int>("gle.buffer_storage");
+
+  if (buffer_storage_ <= 0) {
+    RCLCPP_ERROR_STREAM(
+      node->get_logger(), "Expected `buffer_storage` > 0, but got " << buffer_storage_);
+  }
 }
 
 TGRParams::TGRParams(rclcpp::Node * node)

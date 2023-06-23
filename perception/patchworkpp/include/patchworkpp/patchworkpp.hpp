@@ -68,7 +68,8 @@ private:
 
   bool debug_;
 
-  pcl::PointCloud<PointT>::Ptr in_cloud_, ground_cloud_, non_ground_cloud_;
+  pcl::PointCloud<PointT>::Ptr in_cloud_, ground_cloud_, non_ground_cloud_,
+    sector_non_ground_cloud_, sector_ground_cloud_;
   std::vector<Zone> czm_;
 
   Eigen::Matrix3d covariance_matrix_;
@@ -89,13 +90,13 @@ private:
    * @brief Initialize debugger to publish ground cloud, if `debug=true`.
    *
    */
-  void initializeDebugger()
+  void initialize_debugger()
   {
     pub_ground_cloud_ =
       create_publisher<sensor_msgs::msg::PointCloud2>("~/debug/ground/pointcloud", 1);
   }
 
-  Zone initializeZone(const int zone_idx)
+  Zone initialize_zone(const int zone_idx)
   {
     Zone zone;
     Ring ring;
@@ -109,7 +110,7 @@ private:
     return zone;
   }
 
-  void refreshCZM()
+  void refresh_czm()
   {
     for (auto & zone : czm_) {
       for (auto & ring : zone) {
@@ -130,7 +131,7 @@ private:
     sensor_msgs::msg::PointCloud2 non_ground_cloud_msg;
     pcl::toROSMsg(*non_ground_cloud_, non_ground_cloud_msg);
     non_ground_cloud_msg.header = header;
-    pub_ground_cloud_->publish(non_ground_cloud_msg);
+    pub_non_ground_cloud_->publish(non_ground_cloud_msg);
 
     if (debug_) {
       sensor_msgs::msg::PointCloud2 ground_cloud_msg;
@@ -147,7 +148,7 @@ private:
    * @param point
    * @return double
    */
-  static double calculateRadius(const PointT & point) { return std::hypot(point.x, point.y); }
+  static double calculate_radius(const PointT & point) { return std::hypot(point.x, point.y); }
 
   /**
    * @brief Returns yaw angle [deg].
@@ -155,7 +156,7 @@ private:
    * @param point
    * @return double
    */
-  static double calculateYaw(const PointT & point)
+  static double calculate_yaw(const PointT & point)
   {
     double yaw = std::atan2(point.y, point.x);
     return 0 < yaw ? yaw : yaw + 2 * M_PI;
@@ -167,7 +168,7 @@ private:
    * @param values
    * @return std::pair<double, double>
    */
-  static std::pair<double, double> calculateMeanStd(const std::vector<double> & values)
+  static std::pair<double, double> calculate_mean_stddev(const std::vector<double> & values)
   {
     double mean = std::accumulate(values.begin(), values.end(), 0.0) / values.size();
 
@@ -179,11 +180,22 @@ private:
   }
 
   /**
+   * @brief Insert pointcloud into other pointcloud.
+   *
+   * @param in_cloud
+   * @param out_cloud
+   */
+  void insert_cloud(const pcl::PointCloud<PointT> & in_cloud, pcl::PointCloud<PointT> & out_cloud)
+  {
+    out_cloud.insert(out_cloud.end(), in_cloud.begin(), in_cloud.end());
+  }
+
+  /**
    * @brief Execute Reflected Noise Removal a.k.a RNR.
    *
    * @param in_cloud
    */
-  void executeRNR(const pcl::PointCloud<PointT> & in_cloud) const;
+  void remove_reflected_noise(const pcl::PointCloud<PointT> & in_cloud) const;
 
   /**
    * @brief Sample initial seed points in each zone.
@@ -194,8 +206,8 @@ private:
    * @param in_cloud
    * @return pcl::PointCloud<Point>
    */
-  pcl::PointCloud<PointT> sampleInitialSeed(
-    const int zone_idx, pcl::PointCloud<PointT> & in_cloud) const;
+  std::pair<pcl::PointCloud<PointT>, pcl::PointCloud<PointT>> sample_initial_seed(
+    const int zone_idx, const pcl::PointCloud<PointT> & in_cloud) const;
 
   /**
    * @brief Execute Region-wise Plane Fitting.
@@ -207,30 +219,30 @@ private:
    * @param ground_cloud
    * @param non_ground_cloud
    */
-  void executeRPF(
+  void region_wise_plane_fitting(
     const int zone_idx, pcl::PointCloud<PointT> & zone_cloud,
     pcl::PointCloud<PointT> & ground_cloud, pcl::PointCloud<PointT> & non_ground_cloud);
 
   /**
    * @brief PCA-based vertical plane estimation a.k.a R-VPF.
    *
-   * @param seed_cloud
+   * @param in_cloud
    * @param non_vertical_cloud
    * @param non_ground_cloud
    */
-  void estimateVerticalPlane(
-    pcl::PointCloud<PointT> & seed_cloud, pcl::PointCloud<PointT> & non_vertical_cloud,
-    pcl::PointCloud<PointT> & non_ground_cloud);
+  void estimate_vertical_plane(
+    const int zone_idx, pcl::PointCloud<PointT> & in_cloud,
+    pcl::PointCloud<PointT> & non_vertical_cloud, pcl::PointCloud<PointT> & non_ground_cloud);
 
   /**
    * @brief PCA-based ground plane estimation a.k.a R-GPF.
    *
-   * @param seed_cloud
+   * @param in_cloud
    * @param ground_cloud
    * @param non_ground_cloud
    */
-  void estimateGroundPlane(
-    pcl::PointCloud<PointT> & seed_cloud, pcl::PointCloud<PointT> & ground_cloud,
+  void estimate_ground_plane(
+    const int zone_idx, pcl::PointCloud<PointT> & in_cloud, pcl::PointCloud<PointT> & ground_cloud,
     pcl::PointCloud<PointT> & non_ground_cloud);
 
   /**
@@ -239,32 +251,33 @@ private:
    * @param candidates
    * @param zone_flatness
    */
-  void executeTGR(std::vector<TGRCandidate> & candidates, std::vector<double> & zone_flatness);
+  void temporal_ground_revert(
+    std::vector<TGRCandidate> & candidates, std::vector<double> & zone_flatness);
 
   /**
    * @brief Update elevation thresholds. In paper p5, e <- mean(E)  + a * std_dev(E).
    *
    */
-  void updateElevationThresholds();
+  void update_elevation_thresholds();
 
   /**
    * @brief Update flatness thresholds. In paper p5, f <- mean(F) + b * std_dev(F).
    *
    */
-  void updateFlatnessThresholds();
+  void update_flatness_thresholds();
 
   /**
    * @brief Update noise removal height threshold. In paper p5, h <- mean(E1) + margin.
    *
    */
-  void updateHeightThreshold();
+  void update_height_threshold();
 
   /**
    * @brief Set input points to Concentric Zone Model a.k.a CZM.
    *
    * @param cloud
    */
-  void pointCloud2CZM(
+  void cloud_to_czm(
     const pcl::PointCloud<PointT> & cloud, pcl::PointCloud<PointT> & non_ground_cloud);
 
   /**
@@ -272,7 +285,7 @@ private:
    *
    * @param cloud_msg
    */
-  void cloudCallback(sensor_msgs::msg::PointCloud2::ConstSharedPtr cloud_msg);
+  void cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr cloud_msg);
 };  // class PatchWorkPP
 }  // namespace patchwork_pp
 #endif  // PATCHWORKPP__PATCHWORKPP_HPP_
