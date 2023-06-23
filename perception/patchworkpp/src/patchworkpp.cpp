@@ -34,6 +34,15 @@ PatchWorkPP::PatchWorkPP(const rclcpp::NodeOptions & options)
   std::string output_topic = declare_parameter<std::string>("output");
   debug_ = declare_parameter<bool>("debug", false);
 
+  in_cloud_ = std::make_shared<pcl::PointCloud<PointT>>();
+  ground_cloud_ = std::make_shared<pcl::PointCloud<PointT>>();
+  non_ground_cloud_ = std::make_shared<pcl::PointCloud<PointT>>();
+
+  for (int zone_idx = 0; zone_idx < czm_params_.num_zone(); ++zone_idx) {
+    Zone zone = initializeZone(zone_idx);
+    czm_.emplace_back(zone);
+  }
+
   elevation_buffer_.resize(czm_params_.num_zone());
   flatness_buffer_.resize(czm_params_.num_zone());
 
@@ -51,7 +60,7 @@ void PatchWorkPP::cloudCallback(sensor_msgs::msg::PointCloud2::ConstSharedPtr cl
   in_cloud_->clear();
   ground_cloud_->clear();
   non_ground_cloud_->clear();
-  czm_.clear();
+  refreshCZM();
 
   pcl::fromROSMsg(*cloud_msg, *in_cloud_);
 
@@ -97,9 +106,9 @@ void PatchWorkPP::cloudCallback(sensor_msgs::msg::PointCloud2::ConstSharedPtr cl
                                : false;
 
         if (is_upright && is_not_elevated && is_flat) {
-          elevation_buffer_[zone_idx].push_back(elevation);
-          flatness_buffer_[zone_idx].push_back(flatness);
-          zone_flatness.push_back(flatness);
+          elevation_buffer_.at(zone_idx).emplace_back(elevation);
+          flatness_buffer_.at(zone_idx).emplace_back(flatness);
+          zone_flatness.emplace_back(flatness);
         }
 
         if (!is_upright) {
@@ -315,7 +324,7 @@ void PatchWorkPP::pointCloud2CZM(
     // TODO(ktro2828): use a util function from other package
     double yaw = calculateYaw(point);
 
-    for (int i = 1; i < czm_params_.num_zone(); ++i) {
+    for (int i = 1; i < czm_params_.num_zone() - 1; ++i) {
       if (czm_params_.min_zone_ranges(i) <= radius) {
         continue;
       }

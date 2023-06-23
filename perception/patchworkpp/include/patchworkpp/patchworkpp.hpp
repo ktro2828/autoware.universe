@@ -95,6 +95,31 @@ private:
       create_publisher<sensor_msgs::msg::PointCloud2>("~/debug/ground/pointcloud", 1);
   }
 
+  Zone initializeZone(const int zone_idx)
+  {
+    Zone zone;
+    Ring ring;
+    pcl::PointCloud<PointT> cloud;
+    for (int sector_idx = 0; sector_idx < czm_params_.num_sectors(zone_idx); ++sector_idx) {
+      ring.emplace_back(cloud);
+    }
+    for (int ring_idx = 0; ring_idx < czm_params_.num_rings(zone_idx); ++ring_idx) {
+      zone.emplace_back(ring);
+    }
+    return zone;
+  }
+
+  void refreshCZM()
+  {
+    for (auto & zone : czm_) {
+      for (auto & ring : zone) {
+        for (auto & sector : ring) {
+          sector.points.clear();
+        }
+      }
+    }
+  }
+
   /**
    * @brief Publish non-ground cloud, and also publish ground cloud, if `debug=true`.
    *
