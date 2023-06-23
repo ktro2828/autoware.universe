@@ -71,7 +71,8 @@ class CZMParams
 {
 private:
   int num_zone_;
-  int min_num_points_;
+  int num_near_ring_;
+  int min_num_point_;
   std::vector<double> min_zone_ranges_;
   std::vector<int64_t> num_sectors_;
   std::vector<int64_t> num_rings_;
@@ -87,7 +88,9 @@ public:
 
   int num_zone() const { return num_zone_; }
 
-  int min_num_points() const { return min_num_points_; }
+  int num_near_ring() const { return num_near_ring_; }
+
+  int min_num_point() const { return min_num_point_; }
 
   const std::vector<double> & min_zone_ranges() const { return min_zone_ranges_; }
   double min_zone_ranges(const size_t i) const { return min_zone_ranges_.at(i); }
@@ -110,12 +113,12 @@ public:
   const std::vector<double> & ring_sizes() const { return ring_sizes_; }
   double ring_sizes(const size_t i) const { return ring_sizes_.at(i); }
 
-  void updateElevationThreshold(const size_t i, const double threshold)
+  void update_elevation_threshold(const size_t i, const double threshold)
   {
     elevation_thresholds_[i] = threshold;
   }
 
-  void updateFlatnessThreshold(const size_t i, const double threshold)
+  void update_flatness_threshold(const size_t i, const double threshold)
   {
     flatness_thresholds_[i] = threshold;
   }
@@ -153,6 +156,7 @@ private:
   std::vector<double> elevation_std_weights_;
   std::vector<double> flatness_std_weights_;
   double height_noise_margin_;
+  int buffer_storage_;
 
 public:
   GLEParams() = delete;
@@ -168,6 +172,8 @@ public:
   double flatness_std_weights(const size_t i) const { return flatness_std_weights_.at(i); }
 
   double height_noise_margin() const { return height_noise_margin_; }
+
+  int buffer_storage() const { return buffer_storage_; }
 };  // class GLEParams
 
 class TGRParams

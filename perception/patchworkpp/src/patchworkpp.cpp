@@ -19,6 +19,24 @@
 #include <pcl/common/centroid.h>
 #include <pcl/common/io.h>
 
+// for debug
+#include <chrono>
+#include <ostream>
+
+namespace
+{
+template <typename T, typename U>
+std::ostream & operator<<(std::basic_ostream<U> & os, const std::vector<T> & values)
+{
+  os << "(";
+  for (const T & v : values) {
+    os << v << ", ";
+  }
+  os << ")";
+  return os;
+}
+}  // namespace
+
 namespace patchwork_pp
 {
 PatchWorkPP::PatchWorkPP(const rclcpp::NodeOptions & options)
@@ -37,49 +55,60 @@ PatchWorkPP::PatchWorkPP(const rclcpp::NodeOptions & options)
   in_cloud_ = std::make_shared<pcl::PointCloud<PointT>>();
   ground_cloud_ = std::make_shared<pcl::PointCloud<PointT>>();
   non_ground_cloud_ = std::make_shared<pcl::PointCloud<PointT>>();
+  sector_non_ground_cloud_ = std::make_shared<pcl::PointCloud<PointT>>();
+  sector_ground_cloud_ = std::make_shared<pcl::PointCloud<PointT>>();
 
   for (int zone_idx = 0; zone_idx < czm_params_.num_zone(); ++zone_idx) {
-    Zone zone = initializeZone(zone_idx);
+    Zone zone = initialize_zone(zone_idx);
     czm_.emplace_back(zone);
   }
 
-  elevation_buffer_.resize(czm_params_.num_zone());
-  flatness_buffer_.resize(czm_params_.num_zone());
+  elevation_buffer_.resize(czm_params_.num_near_ring());
+  flatness_buffer_.resize(czm_params_.num_near_ring());
 
   pub_non_ground_cloud_ = create_publisher<sensor_msgs::msg::PointCloud2>(output_topic, 1);
   sub_cloud_ = create_subscription<sensor_msgs::msg::PointCloud2>(
-    input_topic, 1, std::bind(&PatchWorkPP::cloudCallback, this, std::placeholders::_1));
+    input_topic, 10, std::bind(&PatchWorkPP::cloud_callback, this, std::placeholders::_1));
 
   if (debug_) {
-    initializeDebugger();
+    initialize_debugger();
   }
 }
 
-void PatchWorkPP::cloudCallback(sensor_msgs::msg::PointCloud2::ConstSharedPtr cloud_msg)
+void PatchWorkPP::cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr cloud_msg)
 {
+  std::chrono::system_clock::time_point start, end;
+  start = std::chrono::system_clock::now();
+
   in_cloud_->clear();
   ground_cloud_->clear();
   non_ground_cloud_->clear();
-  refreshCZM();
+  refresh_czm();
 
   pcl::fromROSMsg(*cloud_msg, *in_cloud_);
 
   // 1. RNR
-  executeRNR(*in_cloud_);
+  remove_reflected_noise(*in_cloud_);
   // 2. CZM
-  pointCloud2CZM(*in_cloud_, *non_ground_cloud_);
+  cloud_to_czm(*in_cloud_, *non_ground_cloud_);
 
   std::vector<TGRCandidate> candidates;
   std::vector<double> zone_flatness;
+  int concentric_idx = 0;
   for (int zone_idx = 0; zone_idx < czm_params_.num_zone(); ++zone_idx) {
-    Zone zone = czm_.at(zone_idx);
+    Zone & zone = czm_.at(zone_idx);
     for (int ring_idx = 0; ring_idx < czm_params_.num_rings(zone_idx); ++ring_idx) {
       for (int sector_idx = 0; sector_idx < czm_params_.num_sectors(zone_idx); ++sector_idx) {
         pcl::PointCloud<PointT> & zone_cloud = zone.at(ring_idx).at(sector_idx);
-        if (static_cast<int>(zone_cloud.points.size()) < czm_params_.min_num_points()) {
-          std::for_each(
-            zone_cloud.points.begin(), zone_cloud.points.end(),
-            [&](const auto & point) { non_ground_cloud_->emplace_back(point); });
+
+        if (zone_cloud.points.empty()) {
+          continue;
+        }
+
+        if (static_cast<int>(zone_cloud.points.size()) < czm_params_.min_num_point()) {
+          for (const auto & point : zone_cloud) {
+            non_ground_cloud_->points.emplace_back(point);
+          }
           continue;
         }
 
@@ -88,58 +117,71 @@ void PatchWorkPP::cloudCallback(sensor_msgs::msg::PointCloud2::ConstSharedPtr cl
           zone_cloud.points.begin(), zone_cloud.points.end(),
           [](const PointT & pt1, const PointT & pt2) { return pt1.z < pt2.z; });
 
+        sector_non_ground_cloud_->clear();
+        sector_ground_cloud_->clear();
+
         // 3. RPF
-        executeRPF(zone_idx, zone_cloud, *ground_cloud_, *non_ground_cloud_);
+        region_wise_plane_fitting(
+          zone_idx, zone_cloud, *sector_ground_cloud_, *sector_non_ground_cloud_);
 
         // 4. A-GLE
-        // TODO(ktro2828): update A-GLE and TGR
         const double uprightness = v_normal_(2, 0);
         const double elevation = centroid_(2, 0);
-        const double flatness = v_eigenvalues_(2);
+        const double flatness = v_eigenvalues_(0);
 
+        const bool is_near_ring = concentric_idx < czm_params_.num_near_ring();
         const bool is_upright = gle_params_.uprightness_threshold() < uprightness;
-        const bool is_not_elevated = zone_idx < czm_params_.num_zone()
-                                       ? elevation < czm_params_.elevation_thresholds(zone_idx)
-                                       : false;
-        const bool is_flat = zone_idx < czm_params_.num_zone()
-                               ? flatness < czm_params_.flatness_thresholds(zone_idx)
-                               : false;
+        const bool is_not_elevated =
+          is_near_ring ? elevation < czm_params_.elevation_thresholds(zone_idx) : false;
+        const bool is_flat =
+          is_near_ring ? flatness < czm_params_.flatness_thresholds(zone_idx) : false;
 
-        if (is_upright && is_not_elevated && is_flat) {
-          elevation_buffer_.at(zone_idx).emplace_back(elevation);
-          flatness_buffer_.at(zone_idx).emplace_back(flatness);
+        if (is_upright && is_not_elevated && is_near_ring) {
+          elevation_buffer_.at(concentric_idx).emplace_back(elevation);
+          flatness_buffer_.at(concentric_idx).emplace_back(flatness);
           zone_flatness.emplace_back(flatness);
         }
 
         if (!is_upright) {
-          non_ground_cloud_->insert(
-            non_ground_cloud_->end(), ground_cloud_->begin(), ground_cloud_->end());
+          insert_cloud(*sector_ground_cloud_, *non_ground_cloud_);
+        } else if (!is_near_ring || is_not_elevated || is_flat) {
+          insert_cloud(*sector_ground_cloud_, *ground_cloud_);
         } else {
-          // TODO(ktro2828): input ground cloud must be belong to for each sector
-          TGRCandidate candidate(zone_idx, flatness, *ground_cloud_);
+          TGRCandidate candidate(zone_idx, flatness, *sector_ground_cloud_);
           candidates.emplace_back(candidate);
         }
+        insert_cloud(*sector_non_ground_cloud_, *non_ground_cloud_);
       }
-    }
 
-    if (!candidates.empty()) {
-      executeTGR(candidates, zone_flatness);
-      candidates.clear();
-      zone_flatness.clear();
+      if (!candidates.empty()) {
+        temporal_ground_revert(candidates, zone_flatness);
+        candidates.clear();
+        zone_flatness.clear();
+      }
+      ++concentric_idx;
     }
   }
-  updateElevationThresholds();
-  updateFlatnessThresholds();
-  updateHeightThreshold();
+
+  update_elevation_thresholds();
+  update_flatness_thresholds();
+  update_height_threshold();
+
+  RCLCPP_INFO_STREAM(get_logger(), "elevation thresholds: " << czm_params_.elevation_thresholds());
+  RCLCPP_INFO_STREAM(get_logger(), "flatness thresholds: " << czm_params_.flatness_thresholds());
+
+  end = std::chrono::system_clock::now();
+  double elapsed =
+    std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() * 1e-3;
+  RCLCPP_INFO_STREAM(get_logger(), "Processing time: " << elapsed);
 
   publish(cloud_msg->header);
 }
 
-void PatchWorkPP::executeRNR(const pcl::PointCloud<PointT> & in_cloud) const
+void PatchWorkPP::remove_reflected_noise(const pcl::PointCloud<PointT> & in_cloud) const
 {
   for (const auto & point : in_cloud) {
-    double radius = calculateRadius(point);                            // [m]
-    double incident_angle = std::atan2(point.z, radius) * 180 / M_PI;  // [deg]
+    const double radius = calculate_radius(point);                           // [m]
+    const double incident_angle = std::atan2(point.z, radius) * 180 / M_PI;  // [deg]
     if (
       point.z < rnr_params_.min_height_threshold() &&
       incident_angle < rnr_params_.min_vertical_angle_threshold() &&
@@ -149,192 +191,193 @@ void PatchWorkPP::executeRNR(const pcl::PointCloud<PointT> & in_cloud) const
   }
 }
 
-pcl::PointCloud<PointT> PatchWorkPP::sampleInitialSeed(
-  const int zone_idx, pcl::PointCloud<PointT> & in_cloud) const
+std::pair<pcl::PointCloud<PointT>, pcl::PointCloud<PointT>> PatchWorkPP::sample_initial_seed(
+  const int zone_idx, const pcl::PointCloud<PointT> & in_cloud) const
 {
-  pcl::PointCloud<PointT> seed_cloud;
-  // sort by z-value
-  std::sort(
-    in_cloud.points.begin(), in_cloud.points.end(),
-    [](const PointT & pt1, const PointT & pt2) { return pt1.z < pt2.z; });
+  pcl::PointCloud<PointT> seed_cloud, other_cloud;
 
   int init_idx = 0;
   if (zone_idx == 0) {
     double lowest_z_in_close_zone =
       common_params_.sensor_height() == 0 ? -0.1 : common_params_.lowest_z_in_close_zone();
     for (const auto & point : in_cloud.points) {
-      if (point.z < lowest_z_in_close_zone) {
-        ++init_idx;
+      if (lowest_z_in_close_zone < point.z) {
+        break;
       }
+      ++init_idx;
     }
   }
 
-  size_t num_sample = std::max(
+  const size_t num_sample = std::max(
     std::min(static_cast<int>(in_cloud.points.size()), rpf_params_.num_sample()), init_idx);
 
-  double sum_z = std::accumulate(
-    in_cloud.points.begin() + init_idx, in_cloud.points.begin() + num_sample, 0.0,
+  const double sum_z = std::accumulate(
+    in_cloud.points.cbegin() + init_idx, in_cloud.points.cbegin() + init_idx + num_sample, 0.0,
     [](double acc, const auto & pt) { return acc + pt.z; });
 
-  double lowest_z = num_sample != 0 ? sum_z / in_cloud.points.size() : 0.0;
+  const double lowest_z = num_sample != 0 ? sum_z / num_sample : 0.0;
 
   for (const auto & point : in_cloud.points) {
     if (point.z < lowest_z) {
       seed_cloud.points.emplace_back(point);
+    } else {
+      other_cloud.points.emplace_back(point);
     }
   }
-  return seed_cloud;
+  return {seed_cloud, other_cloud};
 }
 
-void PatchWorkPP::executeRPF(
+void PatchWorkPP::region_wise_plane_fitting(
   const int zone_idx, pcl::PointCloud<PointT> & zone_cloud, pcl::PointCloud<PointT> & ground_cloud,
   pcl::PointCloud<PointT> & non_ground_cloud)
 {
   // 1. R-VPF ... Extract vertical cloud as non-ground cloud from seed cloud
-  auto seed_cloud1 = sampleInitialSeed(zone_idx, zone_cloud);
   pcl::PointCloud<PointT> non_vertical_cloud;
-  estimateVerticalPlane(seed_cloud1, non_vertical_cloud, non_ground_cloud);
+  estimate_vertical_plane(zone_idx, zone_cloud, non_vertical_cloud, non_ground_cloud);
 
   // 2. R-GPF ... Extract non-ground cloud from non-vertical cloud
-  auto seed_cloud2 = sampleInitialSeed(zone_idx, non_vertical_cloud);
-  estimateGroundPlane(seed_cloud2, ground_cloud, non_ground_cloud);
+  estimate_ground_plane(zone_idx, non_vertical_cloud, ground_cloud, non_ground_cloud);
 }
 
-void PatchWorkPP::estimateVerticalPlane(
-  pcl::PointCloud<PointT> & seed_cloud, pcl::PointCloud<PointT> & non_vertical_cloud,
-  pcl::PointCloud<PointT> & non_ground_cloud)
+void PatchWorkPP::estimate_vertical_plane(
+  const int zone_idx, pcl::PointCloud<PointT> & in_cloud,
+  pcl::PointCloud<PointT> & non_vertical_cloud, pcl::PointCloud<PointT> & non_ground_cloud)
 {
-  // Compute mean(m^k_n) and covariance(C)
+  // pcl::PointCloud<PointT> src(in_cloud);
+  non_vertical_cloud = in_cloud;
   for (int n = 0; n < rpf_params_.num_iterator(); ++n) {
-    non_vertical_cloud.clear();
+    const auto & [seed_cloud, tmp] = sample_initial_seed(zone_idx, non_vertical_cloud);
     pcl::computeMeanAndCovarianceMatrix(seed_cloud, covariance_matrix_, centroid_);
-    // Compute eigenvalue(lambda1~3) and eigenvector(v1~3) for C(3x3)
     Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver(covariance_matrix_);
-    v_normal_ = solver.eigenvectors().col(2).normalized();
+    v_normal_ = solver.eigenvectors().col(0).normalized();
     v_eigenvalues_ = solver.eigenvalues();
-    for (const auto & point : seed_cloud) {
-      // d = |(p - m^k_n) * v^k_3,n|        ... eq(2)
-      // PI / 2 - cos^(-1) (v^k_3,n * u_z)  ... eq(3)
+    non_vertical_cloud.clear();
+    for (const auto & point : seed_cloud.points) {
       Eigen::Vector3d p(point.x, point.y, point.z);
-      auto distance = v_normal_.dot((p - centroid_.head<3>()).cwiseAbs());
-      auto angle = 0.5 * M_PI - std::acos(v_normal_.dot(u_normal_));
+      const double distance = v_normal_.dot((p - centroid_.head<3>()).cwiseAbs());  // eq(2)
+      const double angle = 0.5 * M_PI - std::acos(v_normal_.dot(u_normal_));        // eq(3)
       if (
         (distance < rpf_params_.max_vertical_distance_threshold()) &&
         angle < rpf_params_.max_angle_threshold()) {
-        non_ground_cloud.emplace_back(point);
+        non_ground_cloud.points.emplace_back(point);
       } else {
-        non_vertical_cloud.emplace_back(point);
+        non_vertical_cloud.points.emplace_back(point);
       }
     }
-    pcl::copyPointCloud(non_vertical_cloud, seed_cloud);
+    pcl::copyPointCloud(tmp, non_vertical_cloud);
   }
 }
 
-void PatchWorkPP::estimateGroundPlane(
-  pcl::PointCloud<PointT> & seed_cloud, pcl::PointCloud<PointT> & ground_cloud,
+void PatchWorkPP::estimate_ground_plane(
+  const int zone_idx, pcl::PointCloud<PointT> & in_cloud, pcl::PointCloud<PointT> & ground_cloud,
   pcl::PointCloud<PointT> & non_ground_cloud)
 {
-  // Compute mean(m^k_n) and covariance(C)
+  // pcl::PointCloud<PointT> src(in_cloud);
+  insert_cloud(in_cloud, ground_cloud);
   for (int n = 0; n < rpf_params_.num_iterator(); ++n) {
-    ground_cloud.clear();
+    const auto & [seed_cloud, tmp] = sample_initial_seed(zone_idx, ground_cloud);
     pcl::computeMeanAndCovarianceMatrix(seed_cloud, covariance_matrix_, centroid_);
-    // Compute eigenvalue(lambda1~3) and eigenvector(v1~3) for C(3x3)
     Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver(covariance_matrix_);
-    // The lowest eigenvector is v^k_3,n
     v_normal_ = solver.eigenvectors().col(0).normalized();
     v_eigenvalues_ = solver.eigenvalues();
-    for (const auto & point : seed_cloud) {
+    ground_cloud.clear();
+    for (const auto & point : seed_cloud.points) {
       Eigen::Vector3d p(point.x, point.y, point.z);
-      auto distance = v_normal_.dot((p - centroid_.head<3>()).cwiseAbs());
+      const double distance = v_normal_.dot((p - centroid_.head<3>()).cwiseAbs());
       if (distance < rpf_params_.max_distance_threshold()) {
-        non_ground_cloud.emplace_back(point);
+        non_ground_cloud.points.emplace_back(point);
       } else {
-        ground_cloud.emplace_back(point);
+        ground_cloud.points.emplace_back(point);
       }
     }
-    pcl::copyPointCloud(ground_cloud, seed_cloud);
+    pcl::copyPointCloud(tmp, ground_cloud);
   }
 }
 
-void PatchWorkPP::executeTGR(
+void PatchWorkPP::temporal_ground_revert(
   std::vector<TGRCandidate> & candidates, std::vector<double> & zone_flatness)
 {
-  // Calculate mean(Fm^t) and stddev(Fm^t) ... eq(8)
-  const auto & [mean_flatness, std_flatness] = calculateMeanStd(zone_flatness);
-  const double flatness_t = mean_flatness + tgr_params_.std_weight() * std_flatness;
+  const auto & [mean_flatness, std_flatness] = calculate_mean_stddev(zone_flatness);
+  const double flatness_t = mean_flatness + tgr_params_.std_weight() * std_flatness;  // eq(8)
   for (auto & candidate : candidates) {
     if (candidate.flatness < flatness_t) {
-      ground_cloud_->insert(
-        ground_cloud_->end(), candidate.ground_cloud.begin(), candidate.ground_cloud.end());
+      insert_cloud(candidate.ground_cloud, *ground_cloud_);
     } else {
-      non_ground_cloud_->insert(
-        non_ground_cloud_->end(), candidate.ground_cloud.begin(), candidate.ground_cloud.end());
+      insert_cloud(candidate.ground_cloud, *non_ground_cloud_);
     }
   }
 }
 
-void PatchWorkPP::updateElevationThresholds()
+void PatchWorkPP::update_elevation_thresholds()
 {
-  for (int m = 0; m < czm_params_.num_zone(); ++m) {
+  for (int m = 0; m < czm_params_.num_near_ring(); ++m) {
     if (elevation_buffer_.at(m).empty()) {
-      return;
+      continue;
     }
-    // Calculate mean(Em) and stddev(Em) ... eq(5)
-    const auto & [mean, std_dev] = calculateMeanStd(elevation_buffer_.at(m));
-    double new_threshold = mean + gle_params_.elevation_std_weights(m) * std_dev;
-    czm_params_.updateElevationThreshold(m, new_threshold);
+    const auto & [mean, stddev] = calculate_mean_stddev(elevation_buffer_.at(m));
+    const double new_threshold = mean + gle_params_.elevation_std_weights(m) * stddev;  // eq(5)
+    czm_params_.update_elevation_threshold(m, new_threshold);
+
+    const int num_exceed = elevation_buffer_.at(m).size() - gle_params_.buffer_storage();
+    if (0 < num_exceed) {
+      elevation_buffer_.at(m).erase(
+        elevation_buffer_.at(m).begin(), elevation_buffer_.at(m).begin() + num_exceed);
+    }
   }
 }
 
-void PatchWorkPP::updateFlatnessThresholds()
+void PatchWorkPP::update_flatness_thresholds()
 {
-  for (int m = 0; m < czm_params_.num_zone(); ++m) {
+  for (int m = 0; m < czm_params_.num_near_ring(); ++m) {
     if (flatness_buffer_.at(m).empty()) {
-      return;
+      continue;
     }
-    // Calculate mean(Fm) and stddev(Fm) ... eq(6)
-    const auto & [mean, std_dev] = calculateMeanStd(flatness_buffer_.at(m));
-    double new_threshold = mean + gle_params_.flatness_std_weights(m) * std_dev;
-    czm_params_.updateFlatnessThreshold(m, new_threshold);
+    const auto & [mean, stddev] = calculate_mean_stddev(flatness_buffer_.at(m));
+    const double new_threshold = mean + gle_params_.flatness_std_weights(m) * stddev;  // eq(6)
+    czm_params_.update_flatness_threshold(m, new_threshold);
+
+    const int num_exceed = flatness_buffer_.at(m).size() - gle_params_.buffer_storage();
+    if (0 < num_exceed) {
+      flatness_buffer_.at(m).erase(
+        flatness_buffer_.at(m).begin(), flatness_buffer_.at(m).begin() + num_exceed);
+    }
   }
 }
 
-void PatchWorkPP::updateHeightThreshold()
+void PatchWorkPP::update_height_threshold()
 {
   if (elevation_buffer_.at(0).empty()) {
     return;
   }
-  const auto & [mean, std_dev] = calculateMeanStd(elevation_buffer_.at(0));
-  double new_threshold = mean + gle_params_.height_noise_margin();
+  const auto & [mean, _] = calculate_mean_stddev(elevation_buffer_.at(0));
+  const double new_threshold = mean + gle_params_.height_noise_margin();  // eq(7)
   rnr_params_.updateHeightThreshold(new_threshold);
 }
 
-void PatchWorkPP::pointCloud2CZM(
+void PatchWorkPP::cloud_to_czm(
   const pcl::PointCloud<PointT> & cloud, pcl::PointCloud<PointT> & non_ground_cloud)
 {
   for (const auto & point : cloud) {
-    // TODO(ktro2828): use a util function from other package
-    double radius = calculateRadius(point);
+    const double radius = calculate_radius(point);
 
     if ((radius < common_params_.min_range()) || (common_params_.max_range() < radius)) {
-      non_ground_cloud.emplace_back(point);
+      non_ground_cloud.points.emplace_back(point);
       continue;
     }
 
-    // TODO(ktro2828): use a util function from other package
-    double yaw = calculateYaw(point);
+    const double yaw = calculate_yaw(point);
 
     for (int i = 1; i < czm_params_.num_zone() - 1; ++i) {
       if (czm_params_.min_zone_ranges(i) <= radius) {
         continue;
       }
-      double ring_size = czm_params_.ring_sizes(i);
-      double sector_size = czm_params_.sector_sizes(i);
+      const double ring_size = czm_params_.ring_sizes(i);
+      const double sector_size = czm_params_.sector_sizes(i);
 
-      int64_t ring_idx = std::min(
+      const int64_t ring_idx = std::min(
         static_cast<int64_t>((radius - czm_params_.min_zone_ranges(i - 1)) / ring_size),
         czm_params_.num_rings(i - 1) - 1);
-      int64_t sector_idx =
+      const int64_t sector_idx =
         std::min(static_cast<int64_t>(yaw / sector_size), czm_params_.num_sectors(i - 1) - 1);
 
       czm_[i - 1][ring_idx][sector_idx].points.emplace_back(point);
