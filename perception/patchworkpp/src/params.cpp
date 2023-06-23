@@ -41,7 +41,7 @@ CZMParams::CZMParams(rclcpp::Node * node)
 {
   num_zone_ = node->declare_parameter<int>("czm.num_zone");
   min_num_points_ = node->declare_parameter<int>("czm.min_num_points");
-  min_zone_ranges_ = node->declare_parameter<std::vector<int64_t>>("czm.min_zone_ranges");
+  min_zone_ranges_ = node->declare_parameter<std::vector<double>>("czm.min_zone_ranges");
   num_sectors_ = node->declare_parameter<std::vector<int64_t>>("czm.num_sectors");
   num_rings_ = node->declare_parameter<std::vector<int64_t>>("czm.num_rings");
   elevation_thresholds_ = node->declare_parameter<std::vector<double>>("czm.elevation_thresholds");
@@ -101,7 +101,8 @@ RPFParams::RPFParams(rclcpp::Node * node)
 GLEParams::GLEParams(rclcpp::Node * node)
 {
   uprightness_threshold_ = node->declare_parameter<double>("gle.uprightness_threshold");
-  elevation_std_weights_ = node->declare_parameter<double>("gle.elevation_std_weights");
+  elevation_std_weights_ =
+    node->declare_parameter<std::vector<double>>("gle.elevation_std_weights");
   flatness_std_weights_ = node->declare_parameter<std::vector<double>>("gle.flatness_std_weights");
   height_noise_margin_ = node->declare_parameter<double>("gle.height_noise_margin");
 }
