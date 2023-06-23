@@ -15,7 +15,6 @@
 #include "patchworkpp/patchworkpp.hpp"
 
 #include <Eigen/Dense>
-#include <rclcpp_components/register_node_macro.hpp>
 
 #include <pcl/common/centroid.h>
 #include <pcl/common/io.h>
@@ -334,6 +333,7 @@ void PatchWorkPP::pointCloud2CZM(
   }
 }
 
-RCLCPP_COMPONENTS_REGISTER_NODE(PatchWorkPP);
-
 }  // namespace patchwork_pp
+
+#include <rclcpp_components/register_node_macro.hpp>
+RCLCPP_COMPONENTS_REGISTER_NODE(patchwork_pp::PatchWorkPP);
