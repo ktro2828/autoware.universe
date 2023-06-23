@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <launch>
-  <arg name="input/points" default=""/>
-  <arg name="output/points" default=""/>
+  <arg name="input/points" default="/kitti/velo/pointcloud"/>
+  <arg name="output/points" default="/output/pointcloud"/>
   <arg name="param_file" default="$(find-pkg-share patchworkpp)/config/params.yaml"/>
-  <arg name="debug" default="false"/>
+  <arg name="debug" default="true"/>
 
   <node pkg="patchworkpp" exec="patchwork_pp" name="patchwork_pp" output="screen">
     <param name="input" value="$(var input/points)"/>
