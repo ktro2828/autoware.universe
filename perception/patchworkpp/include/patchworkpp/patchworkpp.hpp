@@ -206,10 +206,11 @@ private:
    *
    * @param zone_idx
    * @param in_cloud
-   * @return pcl::PointCloud<Point>
+   * @param seed_cloud
    */
-  std::pair<pcl::PointCloud<PointT>, pcl::PointCloud<PointT>> sample_initial_seed(
-    const int zone_idx, const pcl::PointCloud<PointT> & in_cloud) const;
+  void sample_initial_seed(
+    const int zone_idx, const pcl::PointCloud<PointT> & in_cloud,
+    pcl::PointCloud<PointT> & seed_cloud) const;
 
   /**
    * @brief Execute Region-wise Plane Fitting.
@@ -230,22 +231,31 @@ private:
    *
    * @param in_cloud
    * @param non_vertical_cloud
+   * @param ground_cloud
    * @param non_ground_cloud
    */
   void estimate_vertical_plane(
     const int zone_idx, pcl::PointCloud<PointT> & in_cloud,
-    pcl::PointCloud<PointT> & non_vertical_cloud, pcl::PointCloud<PointT> & non_ground_cloud);
+    pcl::PointCloud<PointT> & non_vertical_cloud, pcl::PointCloud<PointT> & ground_cloud,
+    pcl::PointCloud<PointT> & non_ground_cloud);
 
   /**
    * @brief PCA-based ground plane estimation a.k.a R-GPF.
    *
-   * @param in_cloud
+   * @param non_vertical_cloud
    * @param ground_cloud
    * @param non_ground_cloud
    */
   void estimate_ground_plane(
-    const int zone_idx, pcl::PointCloud<PointT> & in_cloud, pcl::PointCloud<PointT> & ground_cloud,
-    pcl::PointCloud<PointT> & non_ground_cloud);
+    const int zone_idx, pcl::PointCloud<PointT> & non_vertical_cloud,
+    pcl::PointCloud<PointT> & ground_cloud, pcl::PointCloud<PointT> & non_ground_cloud);
+
+  /**
+   * @brief Estimate ground plane with calculating eigenvector and eigenvalues.
+   *
+   * @param ground_cloud
+   */
+  void estimate_plane(const pcl::PointCloud<PointT> & ground_cloud);
 
   /**
    * @brief
