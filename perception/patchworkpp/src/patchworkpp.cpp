@@ -191,10 +191,11 @@ void PatchWorkPP::remove_reflected_noise(const pcl::PointCloud<PointT> & in_clou
   }
 }
 
-std::pair<pcl::PointCloud<PointT>, pcl::PointCloud<PointT>> PatchWorkPP::sample_initial_seed(
-  const int zone_idx, const pcl::PointCloud<PointT> & in_cloud) const
+void PatchWorkPP::sample_initial_seed(
+  const int zone_idx, const pcl::PointCloud<PointT> & in_cloud,
+  pcl::PointCloud<PointT> & seed_cloud) const
 {
-  pcl::PointCloud<PointT> seed_cloud, other_cloud;
+  seed_cloud.points.clear();
 
   int init_idx = 0;
   if (zone_idx == 0) {
@@ -220,11 +221,8 @@ std::pair<pcl::PointCloud<PointT>, pcl::PointCloud<PointT>> PatchWorkPP::sample_
   for (const auto & point : in_cloud.points) {
     if (point.z < lowest_z) {
       seed_cloud.points.emplace_back(point);
-    } else {
-      other_cloud.points.emplace_back(point);
     }
   }
-  return {seed_cloud, other_cloud};
 }
 
 void PatchWorkPP::region_wise_plane_fitting(
@@ -233,7 +231,7 @@ void PatchWorkPP::region_wise_plane_fitting(
 {
   // 1. R-VPF ... Extract vertical cloud as non-ground cloud from seed cloud
   pcl::PointCloud<PointT> non_vertical_cloud;
-  estimate_vertical_plane(zone_idx, zone_cloud, non_vertical_cloud, non_ground_cloud);
+  estimate_vertical_plane(zone_idx, zone_cloud, non_vertical_cloud, ground_cloud, non_ground_cloud);
 
   // 2. R-GPF ... Extract non-ground cloud from non-vertical cloud
   estimate_ground_plane(zone_idx, non_vertical_cloud, ground_cloud, non_ground_cloud);
@@ -241,18 +239,28 @@ void PatchWorkPP::region_wise_plane_fitting(
 
 void PatchWorkPP::estimate_vertical_plane(
   const int zone_idx, pcl::PointCloud<PointT> & in_cloud,
-  pcl::PointCloud<PointT> & non_vertical_cloud, pcl::PointCloud<PointT> & non_ground_cloud)
+  pcl::PointCloud<PointT> & non_vertical_cloud, pcl::PointCloud<PointT> & ground_cloud,
+  pcl::PointCloud<PointT> & non_ground_cloud)
 {
+  if (!ground_cloud.empty()) {
+    ground_cloud.clear();
+  }
+  if (!non_ground_cloud.empty()) {
+    non_ground_cloud.empty();
+  }
   // pcl::PointCloud<PointT> src(in_cloud);
   non_vertical_cloud = in_cloud;
   for (int n = 0; n < rpf_params_.num_iterator(); ++n) {
-    const auto & [seed_cloud, tmp] = sample_initial_seed(zone_idx, non_vertical_cloud);
-    pcl::computeMeanAndCovarianceMatrix(seed_cloud, covariance_matrix_, centroid_);
-    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver(covariance_matrix_);
-    v_normal_ = solver.eigenvectors().col(0).normalized();
-    v_eigenvalues_ = solver.eigenvalues();
+    sample_initial_seed(zone_idx, non_vertical_cloud, ground_cloud);
+    estimate_plane(ground_cloud);
+
+    if (zone_idx != 0 || gle_params_.uprightness_threshold() <= v_normal_(0)) {
+      break;
+    }
+
+    auto tmp_cloud = non_vertical_cloud;
     non_vertical_cloud.clear();
-    for (const auto & point : seed_cloud.points) {
+    for (const auto & point : tmp_cloud.points) {
       Eigen::Vector3d p(point.x, point.y, point.z);
       const double distance = v_normal_.dot((p - centroid_.head<3>()).cwiseAbs());  // eq(2)
       const double angle = 0.5 * M_PI - std::acos(v_normal_.dot(u_normal_));        // eq(3)
@@ -264,24 +272,18 @@ void PatchWorkPP::estimate_vertical_plane(
         non_vertical_cloud.points.emplace_back(point);
       }
     }
-    pcl::copyPointCloud(tmp, non_vertical_cloud);
   }
 }
 
 void PatchWorkPP::estimate_ground_plane(
-  const int zone_idx, pcl::PointCloud<PointT> & in_cloud, pcl::PointCloud<PointT> & ground_cloud,
-  pcl::PointCloud<PointT> & non_ground_cloud)
+  const int zone_idx, pcl::PointCloud<PointT> & non_vertical_cloud,
+  pcl::PointCloud<PointT> & ground_cloud, pcl::PointCloud<PointT> & non_ground_cloud)
 {
-  // pcl::PointCloud<PointT> src(in_cloud);
-  insert_cloud(in_cloud, ground_cloud);
+  sample_initial_seed(zone_idx, non_vertical_cloud, ground_cloud);
+
   for (int n = 0; n < rpf_params_.num_iterator(); ++n) {
-    const auto & [seed_cloud, tmp] = sample_initial_seed(zone_idx, ground_cloud);
-    pcl::computeMeanAndCovarianceMatrix(seed_cloud, covariance_matrix_, centroid_);
-    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver(covariance_matrix_);
-    v_normal_ = solver.eigenvectors().col(0).normalized();
-    v_eigenvalues_ = solver.eigenvalues();
     ground_cloud.clear();
-    for (const auto & point : seed_cloud.points) {
+    for (const auto & point : non_vertical_cloud.points) {
       Eigen::Vector3d p(point.x, point.y, point.z);
       const double distance = v_normal_.dot((p - centroid_.head<3>()).cwiseAbs());
       if (distance < rpf_params_.max_distance_threshold()) {
@@ -290,8 +292,20 @@ void PatchWorkPP::estimate_ground_plane(
         ground_cloud.points.emplace_back(point);
       }
     }
-    pcl::copyPointCloud(tmp, ground_cloud);
+    if (n < rpf_params_.num_iterator() - 1) {
+      estimate_plane(ground_cloud);
+    } else {
+      estimate_plane(non_ground_cloud);
+    }
   }
+}
+
+void PatchWorkPP::estimate_plane(const pcl::PointCloud<PointT> & ground_cloud)
+{
+  pcl::computeMeanAndCovarianceMatrix(ground_cloud, covariance_matrix_, centroid_);
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver(covariance_matrix_);
+  v_normal_ = solver.eigenvectors().col(0).normalized();
+  v_eigenvalues_ = solver.eigenvalues();
 }
 
 void PatchWorkPP::temporal_ground_revert(
