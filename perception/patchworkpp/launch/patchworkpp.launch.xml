@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <launch>
-  <arg name="input/points" default="/kitti/velo/pointcloud"/>
-  <arg name="output/points" default="/output/pointcloud"/>
-  <arg name="param_file" default="$(find-pkg-share patchworkpp)/config/params.yaml"/>
+  <arg name="input/pointcloud" default="/kitti/velo/pointcloud"/>
+  <arg name="output/pointcloud" default="/output/pointcloud"/>
+  <arg name="config_file" default="$(find-pkg-share patchworkpp)/config/params.yaml"/>
   <arg name="debug" default="true"/>
 
   <node pkg="patchworkpp" exec="patchwork_pp" name="patchwork_pp" output="screen">
-    <param name="input" value="$(var input/points)"/>
-    <param name="output" value="$(var output/points)"/>
+    <remap from="input/pointcloud" to="$(var input/pointcloud)"/>
+    <remap from="output/pointcloud" to="$(var output/pointcloud)"/>
+    <param from="$(var config_file)"/>
     <param name="debug" value="$(var debug)"/>
-    <param from="$(var param_file)"/>
   </node>
 </launch>
