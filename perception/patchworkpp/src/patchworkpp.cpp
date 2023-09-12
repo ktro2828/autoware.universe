@@ -262,9 +262,10 @@ void PatchWorkPP::estimate_vertical_plane(
     auto tmp_cloud = non_vertical_cloud;
     non_vertical_cloud.clear();
     for (const auto & point : tmp_cloud.points) {
-      Eigen::Vector3d p(point.x, point.y, point.z);
-      const double distance = v_normal_.dot((p - centroid_.head<3>()).cwiseAbs());  // eq(2)
-      const double angle = 0.5 * M_PI - std::acos(v_normal_.dot(u_normal_));        // eq(3)
+      Eigen::Vector3d p(
+        point.x - centroid_(0, 0), point.y - centroid_(1, 0), point.z - centroid_(2, 0));
+      const double distance = std::abs(v_normal_.dot(p));                     // eq(2)
+      const double angle = 0.5 * M_PI - std::acos(v_normal_.dot(u_normal_));  // eq(3)
       if (
         (distance < rpf_params_.max_vertical_distance_threshold()) &&
         angle < rpf_params_.max_angle_threshold()) {
@@ -280,23 +281,35 @@ void PatchWorkPP::estimate_ground_plane(
   const size_t zone_idx, pcl::PointCloud<PointT> & non_vertical_cloud,
   pcl::PointCloud<PointT> & ground_cloud, pcl::PointCloud<PointT> & non_ground_cloud)
 {
-  sample_initial_seed(zone_idx, non_vertical_cloud, ground_cloud);
+  auto tmp_ground_cloud = ground_cloud;
+  ground_cloud.clear();
+
+  sample_initial_seed(zone_idx, non_vertical_cloud, tmp_ground_cloud);
+  estimate_plane(tmp_ground_cloud);
 
   for (size_t n = 0; n < rpf_params_.num_iterator(); ++n) {
-    ground_cloud.clear();
+    tmp_ground_cloud.clear();
     for (const auto & point : non_vertical_cloud.points) {
-      Eigen::Vector3d p(point.x, point.y, point.z);
-      const double distance = v_normal_.dot((p - centroid_.head<3>()).cwiseAbs());
-      if (distance < rpf_params_.max_distance_threshold()) {
-        non_ground_cloud.points.emplace_back(point);
+      Eigen::Vector3d p(
+        point.x - centroid_(0, 0), point.y - centroid_(1, 0), point.z - centroid_(2, 0));
+      const double distance = v_normal_.dot(p);
+      if (n < rpf_params_.num_iterator() - 1) {
+        if (distance < rpf_params_.max_distance_threshold()) {
+          tmp_ground_cloud.points.emplace_back(point);
+        }
       } else {
-        ground_cloud.points.emplace_back(point);
+        if (distance < rpf_params_.max_distance_threshold()) {
+          ground_cloud.points.emplace_back(point);
+        } else {
+          non_ground_cloud.points.emplace_back(point);
+        }
       }
     }
+
     if (n < rpf_params_.num_iterator() - 1) {
-      estimate_plane(ground_cloud);
+      estimate_plane(tmp_ground_cloud);
     } else {
-      estimate_plane(non_ground_cloud);
+      estimate_plane(ground_cloud);
     }
   }
 }
@@ -307,6 +320,12 @@ void PatchWorkPP::estimate_plane(const pcl::PointCloud<PointT> & ground_cloud)
   Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver(covariance_matrix_);
   v_normal_ = solver.eigenvectors().col(0).normalized();
   v_eigenvalues_ = solver.eigenvalues();
+
+  if (v_normal_(2, 0) < 0.0) {
+    for (auto & v : v_normal_) {
+      v *= -1;
+    }
+  }
 }
 
 void PatchWorkPP::temporal_ground_revert(
