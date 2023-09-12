@@ -48,9 +48,7 @@ PatchWorkPP::PatchWorkPP(const rclcpp::NodeOptions & options)
   gle_params_(this),
   tgr_params_(this)
 {
-  std::string input_topic = declare_parameter<std::string>("input");
-  std::string output_topic = declare_parameter<std::string>("output");
-  debug_ = declare_parameter<bool>("debug", false);
+  debug_ = declare_parameter<bool>("debug");
 
   in_cloud_ = std::make_shared<pcl::PointCloud<PointT>>();
   ground_cloud_ = std::make_shared<pcl::PointCloud<PointT>>();
@@ -66,9 +64,9 @@ PatchWorkPP::PatchWorkPP(const rclcpp::NodeOptions & options)
   elevation_buffer_.resize(czm_params_.num_near_ring());
   flatness_buffer_.resize(czm_params_.num_near_ring());
 
-  pub_non_ground_cloud_ = create_publisher<sensor_msgs::msg::PointCloud2>(output_topic, 1);
   sub_cloud_ = create_subscription<sensor_msgs::msg::PointCloud2>(
-    input_topic, 10, std::bind(&PatchWorkPP::cloud_callback, this, std::placeholders::_1));
+    "input/pointcloud", 10, std::bind(&PatchWorkPP::cloud_callback, this, std::placeholders::_1));
+  pub_non_ground_cloud_ = create_publisher<sensor_msgs::msg::PointCloud2>("output/pointcloud", 1);
 
   if (debug_) {
     initialize_debugger();
