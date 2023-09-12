@@ -45,12 +45,12 @@ public:
    */
   struct TGRCandidate
   {
-    const int zone_idx;
+    const size_t zone_idx;
     const double flatness;
     const pcl::PointCloud<PointT> ground_cloud;
 
     explicit TGRCandidate(
-      const int _zone_idx, const double _flatness, const pcl::PointCloud<PointT> & _ground_cloud)
+      const size_t _zone_idx, const double _flatness, const pcl::PointCloud<PointT> & _ground_cloud)
     : zone_idx(_zone_idx), flatness(_flatness), ground_cloud(_ground_cloud)
     {
     }
@@ -96,7 +96,7 @@ private:
       create_publisher<sensor_msgs::msg::PointCloud2>("~/debug/ground/pointcloud", 1);
   }
 
-  Zone initialize_zone(const int zone_idx)
+  Zone initialize_zone(const size_t zone_idx)
   {
     Zone zone;
     Ring ring;
@@ -209,7 +209,7 @@ private:
    * @param seed_cloud
    */
   void sample_initial_seed(
-    const int zone_idx, const pcl::PointCloud<PointT> & in_cloud,
+    const size_t zone_idx, const pcl::PointCloud<PointT> & in_cloud,
     pcl::PointCloud<PointT> & seed_cloud) const;
 
   /**
@@ -223,7 +223,7 @@ private:
    * @param non_ground_cloud
    */
   void region_wise_plane_fitting(
-    const int zone_idx, pcl::PointCloud<PointT> & zone_cloud,
+    const size_t zone_idx, pcl::PointCloud<PointT> & zone_cloud,
     pcl::PointCloud<PointT> & ground_cloud, pcl::PointCloud<PointT> & non_ground_cloud);
 
   /**
@@ -235,7 +235,7 @@ private:
    * @param non_ground_cloud
    */
   void estimate_vertical_plane(
-    const int zone_idx, pcl::PointCloud<PointT> & in_cloud,
+    const size_t zone_idx, pcl::PointCloud<PointT> & in_cloud,
     pcl::PointCloud<PointT> & non_vertical_cloud, pcl::PointCloud<PointT> & ground_cloud,
     pcl::PointCloud<PointT> & non_ground_cloud);
 
@@ -247,7 +247,7 @@ private:
    * @param non_ground_cloud
    */
   void estimate_ground_plane(
-    const int zone_idx, pcl::PointCloud<PointT> & non_vertical_cloud,
+    const size_t zone_idx, pcl::PointCloud<PointT> & non_vertical_cloud,
     pcl::PointCloud<PointT> & ground_cloud, pcl::PointCloud<PointT> & non_ground_cloud);
 
   /**

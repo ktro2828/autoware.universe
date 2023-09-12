@@ -2,19 +2,16 @@
   ros__parameters:
     common:
       sensor_height: 1.723 # Sensor height.
-      min_range: 2.7 # Minimum radius distance of points to be considered.
-      max_range: 80.0 # Maximum radius distance of points to be considered.
       seed_selection_weight: -1.1 # Weight of height that used in initial seed sampling.
     rnr: # Reflected Noise Removal
-      num_sample: 20
       min_height_threshold: -2.123 # Minimum height threshold. Initial value = -sensor_height + height_noise_margin.
       min_vertical_angle_threshold: -15.0 # Minimum incident angle threshold.
       min_intensity_threshold: 0.2 # Minimum intensity threshold.
     czm: # Concentric Zone Model
-      num_zone: 4 # Number of zones.
+      min_range: 2.7 # Minimum radius distance of points to be considered.
+      max_range: 80.0 # Maximum radius distance of points to be considered.
       num_near_ring: 4
       min_num_point: 10 # Minimum number of points that should be contained in each zone.
-      min_zone_ranges: [2.7, 12.3625, 22.025, 41.35] # Minimum radius range for each zone.
       num_sectors: [16, 32, 54, 32] # Number of sectors for each zone.
       num_rings: [2, 4, 4, 4] # Number of rings of each zone.
       elevation_thresholds: [0.0, 0.0, 0.0, 0.0] # Initial threshold values for elevation.
