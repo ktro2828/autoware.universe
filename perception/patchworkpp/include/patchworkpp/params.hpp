@@ -25,8 +25,6 @@ class CommonParams
 {
 private:
   double sensor_height_;
-  double min_range_;
-  double max_range_;
   double seed_selection_weight_;
 
 public:
@@ -36,17 +34,12 @@ public:
 
   double sensor_height() const { return sensor_height_; }
 
-  double min_range() const { return min_range_; }
-
-  double max_range() const { return max_range_; }
-
   double lowest_z_in_close_zone() const { return sensor_height_ * seed_selection_weight_; }
 };
 
 class RNRParams
 {
 private:
-  int num_sample_;
   double min_height_threshold_;
   double min_vertical_angle_threshold_;
   double min_intensity_threshold_;
@@ -55,8 +48,6 @@ public:
   RNRParams() = delete;
 
   explicit RNRParams(rclcpp::Node * node);
-
-  int num_sample() const { return num_sample_; }
 
   double min_height_threshold() const { return min_height_threshold_; }
 
@@ -70,9 +61,11 @@ public:
 class CZMParams
 {
 private:
-  int num_zone_;
-  int num_near_ring_;
-  int min_num_point_;
+  const size_t num_zone_ = 4;
+  double min_range_;
+  double max_range_;
+  size_t num_near_ring_;
+  size_t min_num_point_;
   std::vector<double> min_zone_ranges_;
   std::vector<int64_t> num_sectors_;
   std::vector<int64_t> num_rings_;
@@ -86,11 +79,15 @@ public:
 
   explicit CZMParams(rclcpp::Node * node);
 
-  int num_zone() const { return num_zone_; }
+  double min_range() const { return min_range_; }
 
-  int num_near_ring() const { return num_near_ring_; }
+  double max_range() const { return max_range_; }
 
-  int min_num_point() const { return min_num_point_; }
+  size_t num_zone() const { return num_zone_; }
+
+  size_t num_near_ring() const { return num_near_ring_; }
+
+  size_t min_num_point() const { return min_num_point_; }
 
   const std::vector<double> & min_zone_ranges() const { return min_zone_ranges_; }
   double min_zone_ranges(const size_t i) const { return min_zone_ranges_.at(i); }
@@ -130,8 +127,8 @@ private:
   double max_vertical_distance_threshold_;
   double max_angle_threshold_;
   double max_distance_threshold_;
-  int num_iterator_;
-  int num_sample_;
+  size_t num_iterator_;
+  size_t num_sample_;
 
 public:
   RPFParams() = delete;
@@ -144,9 +141,9 @@ public:
 
   double max_angle_threshold() const { return max_angle_threshold_; }
 
-  int num_iterator() const { return num_iterator_; }
+  size_t num_iterator() const { return num_iterator_; }
 
-  int num_sample() const { return num_sample_; }
+  size_t num_sample() const { return num_sample_; }
 };  // class RPFParams
 
 class GLEParams
