@@ -207,10 +207,11 @@ private:
    * @param zone_idx
    * @param in_cloud
    * @param seed_cloud
+   * @param seed_threshold
    */
   void sample_initial_seed(
     const size_t zone_idx, const pcl::PointCloud<PointT> & in_cloud,
-    pcl::PointCloud<PointT> & seed_cloud) const;
+    pcl::PointCloud<PointT> & seed_cloud, const double seed_threshold) const;
 
   /**
    * @brief Execute Region-wise Plane Fitting.
