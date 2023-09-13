@@ -127,6 +127,8 @@ private:
   double max_vertical_distance_threshold_;
   double max_angle_threshold_;
   double max_distance_threshold_;
+  double height_seed_threshold_;
+  double vertical_seed_threshold_;
   size_t num_iterator_;
   size_t num_sample_;
 
@@ -140,6 +142,10 @@ public:
   double max_distance_threshold() const { return max_distance_threshold_; }
 
   double max_angle_threshold() const { return max_angle_threshold_; }
+
+  double height_seed_threshold() const { return height_seed_threshold_; }
+
+  double vertical_seed_threshold() const { return vertical_seed_threshold_; }
 
   size_t num_iterator() const { return num_iterator_; }
 
