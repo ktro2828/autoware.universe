@@ -194,14 +194,13 @@ void PatchWorkPP::remove_reflected_noise(const pcl::PointCloud<PointT> & in_clou
 
 void PatchWorkPP::sample_initial_seed(
   const size_t zone_idx, const pcl::PointCloud<PointT> & in_cloud,
-  pcl::PointCloud<PointT> & seed_cloud) const
+  pcl::PointCloud<PointT> & seed_cloud, const double seed_threshold) const
 {
   seed_cloud.points.clear();
 
   size_t init_idx = 0;
   if (zone_idx == 0) {
-    double lowest_z_in_close_zone =
-      common_params_.sensor_height() == 0 ? -0.1 : common_params_.lowest_z_in_close_zone();
+    double lowest_z_in_close_zone = common_params_.lowest_z_in_close_zone();
     for (const auto & point : in_cloud.points) {
       if (lowest_z_in_close_zone < point.z) {
         break;
@@ -220,7 +219,7 @@ void PatchWorkPP::sample_initial_seed(
   const double lowest_z = num_sample != 0 ? sum_z / num_sample : 0.0;
 
   for (const auto & point : in_cloud.points) {
-    if (point.z < lowest_z) {
+    if (point.z < lowest_z + seed_threshold) {
       seed_cloud.points.emplace_back(point);
     }
   }
@@ -252,7 +251,8 @@ void PatchWorkPP::estimate_vertical_plane(
   // pcl::PointCloud<PointT> src(in_cloud);
   non_vertical_cloud = in_cloud;
   for (size_t n = 0; n < rpf_params_.num_iterator(); ++n) {
-    sample_initial_seed(zone_idx, non_vertical_cloud, ground_cloud);
+    sample_initial_seed(
+      zone_idx, non_vertical_cloud, ground_cloud, rpf_params_.vertical_seed_threshold());
     estimate_plane(ground_cloud);
 
     if (zone_idx != 0 || gle_params_.uprightness_threshold() <= v_normal_(2, 0)) {
@@ -284,7 +284,8 @@ void PatchWorkPP::estimate_ground_plane(
   auto tmp_ground_cloud = ground_cloud;
   ground_cloud.clear();
 
-  sample_initial_seed(zone_idx, non_vertical_cloud, tmp_ground_cloud);
+  sample_initial_seed(
+    zone_idx, non_vertical_cloud, tmp_ground_cloud, rpf_params_.height_seed_threshold());
   estimate_plane(tmp_ground_cloud);
 
   for (size_t n = 0; n < rpf_params_.num_iterator(); ++n) {
