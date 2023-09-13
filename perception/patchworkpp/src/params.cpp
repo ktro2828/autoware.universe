@@ -57,17 +57,24 @@ CZMParams::CZMParams(rclcpp::Node * node)
       "Expected `num_rings` has the same number of elements as `num_zone`, but got "
         << num_rings_.size() << " and " << num_zone_);
   }
-  if (num_near_ring_ != elevation_thresholds_.size()) {
+  if (num_zone_ != elevation_thresholds_.size()) {
     RCLCPP_ERROR_STREAM(
       node->get_logger(),
-      "Expected `elevation_thresholds` has the same number of elements as `num_near_ring`, but got "
+      "Expected `elevation_thresholds` has the same number of elements as `num_zone`, but got "
         << elevation_thresholds_.size() << " and " << num_zone_);
   }
-  if (num_near_ring_ != flatness_thresholds_.size()) {
+  if (num_zone_ != flatness_thresholds_.size()) {
     RCLCPP_ERROR_STREAM(
       node->get_logger(),
-      "Expected `flatness_thresholds` has the same number of elements as `num_near_ring`, but got "
+      "Expected `flatness_thresholds` has the same number of elements as `num_zone`, but got "
         << flatness_thresholds_.size() << " and " << num_zone_);
+  }
+
+  if (num_zone_ < num_near_ring_) {
+    RCLCPP_ERROR_STREAM(
+      node->get_logger(),
+      "Expected `num_near_ring` has less or equal number with `num_zone`, but got "
+        << num_near_ring_ << " and " << num_zone_);
   }
 
   for (const auto & num : num_sectors_) {
@@ -97,6 +104,8 @@ RPFParams::RPFParams(rclcpp::Node * node)
     node->declare_parameter<double>("rpf.max_vertical_distance_threshold");
   max_angle_threshold_ = node->declare_parameter<double>("rpf.max_angle_threshold");
   max_distance_threshold_ = node->declare_parameter<double>("rpf.max_distance_threshold");
+  height_seed_threshold_ = node->declare_parameter<double>("rpf.height_seed_threshold");
+  vertical_seed_threshold_ = node->declare_parameter<double>("rpf.vertical_seed_threshold");
   num_iterator_ = static_cast<size_t>(node->declare_parameter<int>("rpf.num_iterator"));
   num_sample_ = static_cast<size_t>(node->declare_parameter<int>("rpf.num_sample"));
 }
