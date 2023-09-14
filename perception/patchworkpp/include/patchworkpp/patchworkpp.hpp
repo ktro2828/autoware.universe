@@ -128,12 +128,18 @@ private:
    */
   void publish(const std_msgs::msg::Header & header) const
   {
+    non_ground_cloud_->width = non_ground_cloud_->points.size();
+    non_ground_cloud_->height = 1;
+
     sensor_msgs::msg::PointCloud2 non_ground_cloud_msg;
     pcl::toROSMsg(*non_ground_cloud_, non_ground_cloud_msg);
     non_ground_cloud_msg.header = header;
     pub_non_ground_cloud_->publish(non_ground_cloud_msg);
 
     if (debug_) {
+      ground_cloud_->width = ground_cloud_->points.size();
+      ground_cloud_->height = 1;
+
       sensor_msgs::msg::PointCloud2 ground_cloud_msg;
       pcl::toROSMsg(*ground_cloud_, ground_cloud_msg);
       ground_cloud_msg.header = header;
