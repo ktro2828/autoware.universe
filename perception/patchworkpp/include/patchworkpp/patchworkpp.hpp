@@ -178,6 +178,8 @@ private:
         [&](double acc, const double & v) { return acc + std::pow(v - mean, 2.0); }) /
       values.size();
 
+    std_dev = std::sqrt(std_dev);
+
     return {mean, std_dev};
   }
 
