@@ -106,6 +106,8 @@ void PatchWorkPP::cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr c
         if (zone_cloud.points.size() < czm_params_.min_num_point()) {
           for (const auto & point : zone_cloud) {
             non_ground_cloud_->points.emplace_back(point);
+            non_ground_cloud_->width = non_ground_cloud_->points.size();
+            non_ground_cloud_->height = 1;
           }
           continue;
         }
