@@ -172,11 +172,11 @@ private:
   {
     double mean = std::accumulate(values.begin(), values.end(), 0.0) / values.size();
 
-    double std_dev =
+    double std_dev = std::sqrt(
       std::accumulate(
         values.begin(), values.end(), 0.0,
         [&](double acc, const double & v) { return acc + std::pow(v - mean, 2.0); }) /
-      values.size();
+      (values.size() - 1));
 
     return {mean, std_dev};
   }
