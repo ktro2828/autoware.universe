@@ -128,12 +128,18 @@ private:
    */
   void publish(const std_msgs::msg::Header & header) const
   {
+    non_ground_cloud_->width = non_ground_cloud_->points.size();
+    non_ground_cloud_->height = 1;
+
     sensor_msgs::msg::PointCloud2 non_ground_cloud_msg;
     pcl::toROSMsg(*non_ground_cloud_, non_ground_cloud_msg);
     non_ground_cloud_msg.header = header;
     pub_non_ground_cloud_->publish(non_ground_cloud_msg);
 
     if (debug_) {
+      ground_cloud_->width = ground_cloud_->points.size();
+      ground_cloud_->height = 1;
+
       sensor_msgs::msg::PointCloud2 ground_cloud_msg;
       pcl::toROSMsg(*ground_cloud_, ground_cloud_msg);
       ground_cloud_msg.header = header;
@@ -172,11 +178,13 @@ private:
   {
     double mean = std::accumulate(values.begin(), values.end(), 0.0) / values.size();
 
-    double std_dev = std::sqrt(
+    double std_dev =
       std::accumulate(
         values.begin(), values.end(), 0.0,
         [&](double acc, const double & v) { return acc + std::pow(v - mean, 2.0); }) /
-      (values.size() - 1));
+      values.size();
+
+    std_dev = std::sqrt(std_dev);
 
     return {mean, std_dev};
   }
