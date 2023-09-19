@@ -1,0 +1,238 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Parameters for Patchwork++ Node",
+  "type": "object",
+  "definitions": {
+    "patchworkpp_node": {
+      "type": "object",
+      "properties": {
+        "common": {
+          "type": "object",
+          "description": "",
+          "properties": {
+            "sensor_height": {
+              "type": "number",
+              "description": "",
+              "default": 1.723,
+              "exclusiveMinimum": 0.0
+            },
+            "seed_selection_weight": {
+              "type": "number",
+              "description": "",
+              "default": -1.1,
+              "exclusiveMaximum": 0.0
+            }
+          },
+          "required": ["sensor_height", "seed_selection_weight"]
+        },
+        "rnr": {
+          "type": "object",
+          "description": "",
+          "properties": {
+            "min_height_threshold": {
+              "type": "number",
+              "description": "",
+              "default": -2.523,
+              "exclusiveMaximum": 0.0
+            },
+            "min_vertical_angle_threshold": {
+              "type": "number",
+              "description": "",
+              "default": -15.0,
+              "exclusiveMaximum": 0.0
+            },
+            "min_intensity_threshold": {
+              "type": "number",
+              "description": "",
+              "default": 0.2,
+              "exclusiveMinimum": 0.0
+            }
+          },
+          "required": [
+            "min_height_threshold",
+            "min_vertical_angle_threshold",
+            "min_intensity_threshold"
+          ]
+        },
+        "czm": {
+          "type": "object",
+          "description": "",
+          "properties": {
+            "min_range": {
+              "type": "number",
+              "description": "",
+              "default": 2.7,
+              "exclusiveMinimum": 0.0
+            },
+            "max_range": {
+              "type": "number",
+              "description": "",
+              "default": 80.0,
+              "exclusiveMinimum": 0.0
+            },
+            "num_zone": {
+              "type": "integer",
+              "description": "",
+              "default": 4,
+              "minimum": 1
+            },
+            "num_near_ring": {
+              "type": "integer",
+              "description": "",
+              "default": 4,
+              "minimum": 1
+            },
+            "min_num_point": {
+              "type": "integer",
+              "description": "",
+              "default": 10,
+              "minimum": 1
+            },
+            "num_sectors": {
+              "type": "array",
+              "description": "",
+              "default": [16, 32, 54, 32]
+            },
+            "num_rings": {
+              "type": "array",
+              "description": "",
+              "default": [2, 4, 4, 4]
+            },
+            "elevation_thresholds": {
+              "type": "array",
+              "description": "",
+              "default": [0.0, 0.0, 0.0, 0.0]
+            },
+            "flatness_thresholds": {
+              "type": "array",
+              "description": "",
+              "default": [0.0, 0.0, 0.0, 0.0]
+            }
+          },
+          "required": [
+            "min_range",
+            "max_range",
+            "num_zone",
+            "num_near_ring",
+            "min_num_point",
+            "num_sectors",
+            "num_rings",
+            "elevation_thresholds",
+            "flatness_thresholds"
+          ]
+        },
+        "rpf": {
+          "type": "object",
+          "description": "",
+          "properties": {
+            "max_vertical_distance_threshold": {
+              "type": "number",
+              "description": "",
+              "default": 0.1,
+              "exclusiveMinimum": 0.0
+            },
+            "max_angle_threshold": {
+              "type": "number",
+              "description": "",
+              "default": 0.707,
+              "exclusiveMinimum": 0.0,
+              "exclusiveMaximum": 1.0
+            },
+            "max_distance_threshold": {
+              "type": "number",
+              "description": "",
+              "default": 0.1
+            },
+            "num_iterator": {
+              "type": "integer",
+              "description": "",
+              "default": 3,
+              "minimum": 1
+            },
+            "num_sample": {
+              "type": "integer",
+              "description": "",
+              "default": 20,
+              "minimum": 1
+            },
+            "gpf_seed_margin": {
+              "type": "number",
+              "description": "",
+              "default": 0.3,
+              "minimum": 0.0
+            },
+            "vpf_seed_margin": {
+              "type": "number",
+              "description": "",
+              "default": 0.25,
+              "minimum": 0.0
+            }
+          },
+          "required": [
+            "max_vertical_distance_threshold",
+            "max_angle_threshold",
+            "max_distance_threshold",
+            "num_iterator",
+            "num_sample",
+            "gpf_seed_margin",
+            "vpf_seed_margin"
+          ]
+        },
+        "gle": {
+          "type": "object",
+          "description": "",
+          "properties": {
+            "uprightness_threshold": {
+              "type": "number",
+              "description": "",
+              "default": 0.707,
+              "exclusiveMinimum": 0.0
+            },
+            "elevation_std_weights": {
+              "type": "array",
+              "description": "",
+              "default": [1.0, 1.0, 1.0, 1.0]
+            },
+            "flatness_std_weights": {
+              "type": "array",
+              "description": "",
+              "default": [3.0, 2.0, 2.0, 2.0]
+            },
+            "height_noise_margin": {
+              "type": "number",
+              "description": "",
+              "default": -0.5,
+              "exclusiveMaximum": 0.0
+            },
+            "buffer_storage": {
+              "type": "integer",
+              "description": "",
+              "default": 1000,
+              "minimum": 100
+            }
+          },
+          "required": [
+            "uprightness_threshold",
+            "elevation_std_weights",
+            "flatness_std_weights",
+            "height_noise_margin",
+            "buffer_storage"
+          ]
+        }
+      },
+      "required": ["common", "rnr", "czm", "rpf", "gle"]
+    }
+  },
+  "properties": {
+    "/**": {
+      "type": "object",
+      "properties": {
+        "ros__parameters": {
+          "$ref": "#/definitions/patchworkpp_node"
+        }
+      },
+      "required": ["ros__parameters"]
+    }
+  },
+  "required": ["/**"]
+}
