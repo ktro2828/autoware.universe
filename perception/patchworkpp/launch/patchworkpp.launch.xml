@@ -2,7 +2,7 @@
 <launch>
   <arg name="input/pointcloud" default="/kitti/velo/pointcloud"/>
   <arg name="output/pointcloud" default="/output/pointcloud"/>
-  <arg name="config_file" default="$(find-pkg-share patchworkpp)/config/params.yaml"/>
+  <arg name="config_file" default="$(find-pkg-share patchworkpp)/config/patchworkpp.params.yaml"/>
   <arg name="debug" default="true"/>
 
   <node pkg="patchworkpp" exec="patchwork_pp" name="patchwork_pp" output="screen">

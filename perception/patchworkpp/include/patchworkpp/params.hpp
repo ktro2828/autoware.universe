@@ -61,7 +61,7 @@ public:
 class CZMParams
 {
 private:
-  const size_t num_zone_ = 4;
+  size_t num_zone_;
   double min_range_;
   double max_range_;
   size_t num_near_ring_;
@@ -127,8 +127,8 @@ private:
   double max_vertical_distance_threshold_;
   double max_angle_threshold_;
   double max_distance_threshold_;
-  double height_seed_threshold_;
-  double vertical_seed_threshold_;
+  double gpf_seed_margin_;
+  double vpf_seed_margin_;
   size_t num_iterator_;
   size_t num_sample_;
 
@@ -143,9 +143,9 @@ public:
 
   double max_angle_threshold() const { return max_angle_threshold_; }
 
-  double height_seed_threshold() const { return height_seed_threshold_; }
+  double gpf_seed_margin() const { return gpf_seed_margin_; }
 
-  double vertical_seed_threshold() const { return vertical_seed_threshold_; }
+  double vpf_seed_margin() const { return vpf_seed_margin_; }
 
   size_t num_iterator() const { return num_iterator_; }
 
@@ -179,17 +179,5 @@ public:
   int buffer_storage() const { return buffer_storage_; }
 };  // class GLEParams
 
-class TGRParams
-{
-private:
-  double std_weight_;
-
-public:
-  TGRParams() = delete;
-
-  explicit TGRParams(rclcpp::Node * node);
-
-  double std_weight() const { return std_weight_; }
-};
 }  // namespace patchwork_pp
 #endif  // PATCHWORKPP__PARAMS_HPP_
