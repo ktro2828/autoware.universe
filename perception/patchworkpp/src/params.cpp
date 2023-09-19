@@ -38,6 +38,7 @@ CZMParams::CZMParams(rclcpp::Node * node)
 {
   min_range_ = node->declare_parameter<double>("czm.min_range");
   max_range_ = node->declare_parameter<double>("czm.max_range");
+  num_zone_ = static_cast<size_t>(node->declare_parameter<int>("czm.num_zone"));
   num_near_ring_ = static_cast<size_t>(node->declare_parameter<int>("czm.num_near_ring"));
   min_num_point_ = static_cast<size_t>(node->declare_parameter<int>("czm.min_num_point"));
   num_sectors_ = node->declare_parameter<std::vector<int64_t>>("czm.num_sectors");
@@ -82,19 +83,23 @@ CZMParams::CZMParams(rclcpp::Node * node)
   }
 
   {
+    // eq(3) in Patchwork
     min_zone_ranges_.resize(num_zone_);
     min_zone_ranges_.at(0) = min_range_;
-    min_zone_ranges_.at(1) = (7.0 * min_range_ + max_range_) / 8.0;
-    min_zone_ranges_.at(2) = (3.0 * min_range_ + max_range_) / 4.0;
-    min_zone_ranges_.at(3) = (min_range_ + max_range_) / 2.0;
+    for (size_t i = 1; i < num_zone_; ++i) {
+      const double scale = std::pow(2.0, num_zone_ - i);
+      min_zone_ranges_.at(i) = ((scale - 1) * min_range_ + max_range_) / scale;
+    }
   }
 
   {
     ring_sizes_.resize(num_zone_);
-    ring_sizes_.at(0) = (min_zone_ranges_.at(1) - min_zone_ranges_.at(0)) / num_rings_.at(0);
-    ring_sizes_.at(1) = (min_zone_ranges_.at(2) - min_zone_ranges_.at(1)) / num_rings_.at(1);
-    ring_sizes_.at(2) = (min_zone_ranges_.at(3) - min_zone_ranges_.at(2)) / num_rings_.at(2);
-    ring_sizes_.at(3) = (max_range_ - min_zone_ranges_.at(3)) / num_rings_.at(3);
+    for (size_t i = 1; i < num_zone_ - 1; ++i) {
+      ring_sizes_.at(i - 1) =
+        (min_zone_ranges_.at(i) - min_zone_ranges_.at(i - 1)) / num_rings_.at(i - 1);
+    }
+    ring_sizes_.at(num_zone_ - 1) =
+      (max_range_ - min_zone_ranges_.at(num_zone_ - 1)) / num_rings_.at(num_zone_ - 1);
   }
 }
 
@@ -104,8 +109,8 @@ RPFParams::RPFParams(rclcpp::Node * node)
     node->declare_parameter<double>("rpf.max_vertical_distance_threshold");
   max_angle_threshold_ = node->declare_parameter<double>("rpf.max_angle_threshold");
   max_distance_threshold_ = node->declare_parameter<double>("rpf.max_distance_threshold");
-  height_seed_threshold_ = node->declare_parameter<double>("rpf.height_seed_threshold");
-  vertical_seed_threshold_ = node->declare_parameter<double>("rpf.vertical_seed_threshold");
+  gpf_seed_margin_ = node->declare_parameter<double>("rpf.gpf_seed_margin");
+  vpf_seed_margin_ = node->declare_parameter<double>("rpf.vpf_seed_margin");
   num_iterator_ = static_cast<size_t>(node->declare_parameter<int>("rpf.num_iterator"));
   num_sample_ = static_cast<size_t>(node->declare_parameter<int>("rpf.num_sample"));
 }
@@ -123,11 +128,6 @@ GLEParams::GLEParams(rclcpp::Node * node)
     RCLCPP_ERROR_STREAM(
       node->get_logger(), "Expected `buffer_storage` > 0, but got " << buffer_storage_);
   }
-}
-
-TGRParams::TGRParams(rclcpp::Node * node)
-{
-  std_weight_ = node->declare_parameter<double>("tgr.std_weight");
 }
 
 }  // namespace patchwork_pp
