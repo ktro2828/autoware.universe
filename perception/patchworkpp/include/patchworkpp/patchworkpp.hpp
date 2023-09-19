@@ -28,6 +28,7 @@
 #include <pcl_conversions/pcl_conversions.h>
 
 #include <numeric>
+#include <queue>
 #include <utility>
 #include <vector>
 
@@ -46,12 +47,19 @@ public:
   struct TGRCandidate
   {
     const size_t zone_idx;
-    const double flatness;
     const pcl::PointCloud<PointT> ground_cloud;
+    const bool is_near_ring;
+    const double elevation;
+    const double flatness;
 
     explicit TGRCandidate(
-      const size_t _zone_idx, const double _flatness, const pcl::PointCloud<PointT> & _ground_cloud)
-    : zone_idx(_zone_idx), flatness(_flatness), ground_cloud(_ground_cloud)
+      const size_t _zone_idx, const pcl::PointCloud<PointT> & _ground_cloud,
+      const bool _is_near_ring, const double _elevation, const double _flatness)
+    : zone_idx(_zone_idx),
+      ground_cloud(_ground_cloud),
+      is_near_ring(_is_near_ring),
+      elevation(_elevation),
+      flatness(_flatness)
     {
     }
   };
@@ -64,7 +72,6 @@ private:
   CZMParams czm_params_;
   RPFParams rpf_params_;
   GLEParams gle_params_;
-  TGRParams tgr_params_;
 
   bool debug_;
 
@@ -197,15 +204,16 @@ private:
    */
   void insert_cloud(const pcl::PointCloud<PointT> & in_cloud, pcl::PointCloud<PointT> & out_cloud)
   {
-    out_cloud.insert(out_cloud.end(), in_cloud.begin(), in_cloud.end());
+    out_cloud.insert(out_cloud.end(), in_cloud.cbegin(), in_cloud.cend());
   }
 
   /**
    * @brief Execute Reflected Noise Removal a.k.a RNR.
    *
    * @param in_cloud
+   * @return std::queue<size_t>
    */
-  void remove_reflected_noise(const pcl::PointCloud<PointT> & in_cloud) const;
+  std::queue<size_t> remove_reflected_noise(const pcl::PointCloud<PointT> & in_cloud) const;
 
   /**
    * @brief Sample initial seed points in each zone.
@@ -215,11 +223,11 @@ private:
    * @param zone_idx
    * @param in_cloud
    * @param seed_cloud
-   * @param seed_threshold
+   * @param seed_margin
    */
   void sample_initial_seed(
     const size_t zone_idx, const pcl::PointCloud<PointT> & in_cloud,
-    pcl::PointCloud<PointT> & seed_cloud, const double seed_threshold) const;
+    pcl::PointCloud<PointT> & seed_cloud, const double seed_margin) const;
 
   /**
    * @brief Execute Region-wise Plane Fitting.
@@ -251,12 +259,12 @@ private:
   /**
    * @brief PCA-based ground plane estimation a.k.a R-GPF.
    *
-   * @param non_vertical_cloud
+   * @param in_cloud
    * @param ground_cloud
    * @param non_ground_cloud
    */
   void estimate_ground_plane(
-    const size_t zone_idx, pcl::PointCloud<PointT> & non_vertical_cloud,
+    const size_t zone_idx, pcl::PointCloud<PointT> & in_cloud,
     pcl::PointCloud<PointT> & ground_cloud, pcl::PointCloud<PointT> & non_ground_cloud);
 
   /**
@@ -270,10 +278,12 @@ private:
    * @brief
    *
    * @param candidates
-   * @param zone_flatness
+   * @param ring_elevation
+   * @param ring_flatness
    */
   void temporal_ground_revert(
-    std::vector<TGRCandidate> & candidates, std::vector<double> & zone_flatness);
+    const std::vector<TGRCandidate> & candidates, const std::vector<double> & ring_elevation,
+    const std::vector<double> & ring_flatness);
 
   /**
    * @brief Update elevation thresholds. In paper p5, e <- mean(E)  + a * std_dev(E).
@@ -296,10 +306,13 @@ private:
   /**
    * @brief Set input points to Concentric Zone Model a.k.a CZM.
    *
-   * @param cloud
+   * @param in_cloud
+   * @param non_ground_cloud
+   * @param noise_indices
    */
   void cloud_to_czm(
-    const pcl::PointCloud<PointT> & cloud, pcl::PointCloud<PointT> & non_ground_cloud);
+    const pcl::PointCloud<PointT> & in_cloud, pcl::PointCloud<PointT> & non_ground_cloud,
+    std::queue<size_t> & noise_indices);
 
   /**
    * @brief Callback. Estimate ground and non-ground points.
