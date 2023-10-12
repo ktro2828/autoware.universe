@@ -434,27 +434,28 @@ void PatchWorkPP::cloud_to_czm(
     const auto & point = in_cloud.points.at(pt_idx);
     const double radius = calculate_radius(point);
 
-    if ((radius < czm_params_.min_range()) || (czm_params_.max_range() < radius)) {
+    if ((radius < czm_params_.min_range()) || (czm_params_.max_range() <= radius)) {
       non_ground_cloud.points.emplace_back(point);
       continue;
     }
 
     const double yaw = calculate_yaw(point);
 
-    for (size_t i = 1; i < czm_params_.num_zone(); ++i) {
-      if (radius <= czm_params_.min_zone_ranges(i - 1) || czm_params_.min_zone_ranges(i) < radius) {
+    for (size_t i = 0; i < czm_params_.num_zone(); ++i) {
+      if (radius < czm_params_.min_zone_ranges(i) || czm_params_.max_zone_ranges(i) <= radius) {
         continue;
       }
       const double ring_size = czm_params_.ring_sizes(i);
       const double sector_size = czm_params_.sector_sizes(i);
 
       const int64_t ring_idx = std::min(
-        static_cast<int64_t>((radius - czm_params_.min_zone_ranges(i - 1)) / ring_size),
-        czm_params_.num_rings(i - 1) - 1);
+        static_cast<int64_t>((radius - czm_params_.min_zone_ranges(i)) / ring_size),
+        czm_params_.num_rings(i) - 1);
       const int64_t sector_idx =
-        std::min(static_cast<int64_t>(yaw / sector_size), czm_params_.num_sectors(i - 1) - 1);
+        std::min(static_cast<int64_t>(yaw / sector_size), czm_params_.num_sectors(i) - 1);
 
-      czm_[i - 1][ring_idx][sector_idx].points.emplace_back(point);
+      czm_[i][ring_idx][sector_idx].points.emplace_back(point);
+      continue;
     }
   }
 }

@@ -91,6 +91,14 @@ CZMParams::CZMParams(rclcpp::Node * node)
       min_zone_ranges_.at(i) = ((scale - 1) * min_range_ + max_range_) / scale;
     }
   }
+  {
+    // eq(3) in Patchwork
+    max_zone_ranges_.resize(num_zone_);
+    for (size_t i = 0; i < num_zone_ - 1; ++i) {
+      max_zone_ranges_.at(i) = min_zone_ranges_.at(i + 1);
+    }
+    max_zone_ranges_.at(num_zone_ - 1) = max_range_;
+  }
 
   {
     ring_sizes_.resize(num_zone_);
