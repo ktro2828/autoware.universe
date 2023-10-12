@@ -16,10 +16,11 @@
 
 #include "util_type.hpp"
 
+#include <behavior_velocity_planner_common/utilization/boost_geometry_helper.hpp>
 #include <behavior_velocity_planner_common/utilization/path_utilization.hpp>
 #include <behavior_velocity_planner_common/utilization/trajectory_utils.hpp>
 #include <behavior_velocity_planner_common/utilization/util.hpp>
-#include <interpolation/spline_interpolation.hpp>
+#include <interpolation/spline_interpolation_points_2d.hpp>
 #include <lanelet2_extension/regulatory_elements/road_marking.hpp>
 #include <lanelet2_extension/utility/query.hpp>
 #include <lanelet2_extension/utility/utilities.hpp>
@@ -42,6 +43,22 @@
 #include <tuple>
 #include <unordered_map>
 #include <vector>
+
+namespace tier4_autoware_utils
+{
+
+template <>
+inline geometry_msgs::msg::Point getPoint(const lanelet::ConstPoint3d & p)
+{
+  geometry_msgs::msg::Point point;
+  point.x = p.x();
+  point.y = p.y();
+  point.z = p.z();
+  return point;
+}
+
+}  // namespace tier4_autoware_utils
+
 namespace behavior_velocity_planner
 {
 namespace bg = boost::geometry;
@@ -279,6 +296,8 @@ std::optional<IntersectionStopLines> generateIntersectionStopLines(
       }
     }
   }
+  const auto first_attention_stop_line_ip = static_cast<size_t>(occlusion_peeking_line_ip_int);
+  const bool first_attention_stop_line_valid = occlusion_peeking_line_valid;
   occlusion_peeking_line_ip_int += std::ceil(peeking_offset / ds);
   const auto occlusion_peeking_line_ip = static_cast<size_t>(
     std::clamp<int>(occlusion_peeking_line_ip_int, 0, static_cast<int>(path_ip.points.size()) - 1));
@@ -324,6 +343,7 @@ std::optional<IntersectionStopLines> generateIntersectionStopLines(
     size_t closest_idx{0};
     size_t stuck_stop_line{0};
     size_t default_stop_line{0};
+    size_t first_attention_stop_line{0};
     size_t occlusion_peeking_stop_line{0};
     size_t pass_judge_line{0};
   };
@@ -333,6 +353,7 @@ std::optional<IntersectionStopLines> generateIntersectionStopLines(
     {&closest_idx_ip, &intersection_stop_lines_temp.closest_idx},
     {&stuck_stop_line_ip, &intersection_stop_lines_temp.stuck_stop_line},
     {&default_stop_line_ip, &intersection_stop_lines_temp.default_stop_line},
+    {&first_attention_stop_line_ip, &intersection_stop_lines_temp.first_attention_stop_line},
     {&occlusion_peeking_line_ip, &intersection_stop_lines_temp.occlusion_peeking_stop_line},
     {&pass_judge_line_ip, &intersection_stop_lines_temp.pass_judge_line},
   };
@@ -366,6 +387,10 @@ std::optional<IntersectionStopLines> generateIntersectionStopLines(
   }
   if (default_stop_line_valid) {
     intersection_stop_lines.default_stop_line = intersection_stop_lines_temp.default_stop_line;
+  }
+  if (first_attention_stop_line_valid) {
+    intersection_stop_lines.first_attention_stop_line =
+      intersection_stop_lines_temp.first_attention_stop_line;
   }
   if (occlusion_peeking_line_valid) {
     intersection_stop_lines.occlusion_peeking_stop_line =
@@ -765,12 +790,11 @@ bool hasAssociatedTrafficLight(lanelet::ConstLanelet lane)
   return tl_id.has_value();
 }
 
-bool isTrafficLightArrowActivated(
+TrafficPrioritizedLevel getTrafficPrioritizedLevel(
   lanelet::ConstLanelet lane, const std::map<int, TrafficSignalStamped> & tl_infos)
 {
   using TrafficSignalElement = autoware_perception_msgs::msg::TrafficSignalElement;
 
-  const auto & turn_direction = lane.attributeOr("turn_direction", "else");
   std::optional<int> tl_id = std::nullopt;
   for (auto && tl_reg_elem : lane.regulatoryElementsAs<lanelet::TrafficLight>()) {
     tl_id = tl_reg_elem->id();
@@ -778,30 +802,50 @@ bool isTrafficLightArrowActivated(
   }
   if (!tl_id) {
     // this lane has no traffic light
-    return false;
+    return TrafficPrioritizedLevel::NOT_PRIORITIZED;
   }
   const auto tl_info_it = tl_infos.find(tl_id.value());
   if (tl_info_it == tl_infos.end()) {
     // the info of this traffic light is not available
-    return false;
+    return TrafficPrioritizedLevel::NOT_PRIORITIZED;
   }
   const auto & tl_info = tl_info_it->second;
+  bool has_amber_signal{false};
   for (auto && tl_light : tl_info.signal.elements) {
-    if (tl_light.color != TrafficSignalElement::GREEN) continue;
-    if (tl_light.status != TrafficSignalElement::SOLID_ON) continue;
-    if (turn_direction == std::string("left") && tl_light.shape == TrafficSignalElement::LEFT_ARROW)
-      return true;
-    if (
-      turn_direction == std::string("right") && tl_light.shape == TrafficSignalElement::RIGHT_ARROW)
-      return true;
+    if (tl_light.color == TrafficSignalElement::AMBER) {
+      has_amber_signal = true;
+    }
+    if (tl_light.color == TrafficSignalElement::RED) {
+      // NOTE: Return here since the red signal has the highest priority.
+      return TrafficPrioritizedLevel::FULLY_PRIORITIZED;
+    }
   }
-  return false;
+  if (has_amber_signal) {
+    return TrafficPrioritizedLevel::PARTIALLY_PRIORITIZED;
+  }
+  return TrafficPrioritizedLevel::NOT_PRIORITIZED;
+}
+
+double getHighestCurvature(const lanelet::ConstLineString3d & centerline)
+{
+  std::vector<lanelet::ConstPoint3d> points;
+  for (auto point = centerline.begin(); point != centerline.end(); point++) {
+    points.push_back(*point);
+  }
+
+  SplineInterpolationPoints2d interpolation(points);
+  const std::vector<double> curvatures = interpolation.getSplineInterpolatedCurvatures();
+  std::vector<double> curvatures_positive;
+  for (const auto & curvature : curvatures) {
+    curvatures_positive.push_back(std::fabs(curvature));
+  }
+  return *std::max_element(curvatures_positive.begin(), curvatures_positive.end());
 }
 
 std::vector<DiscretizedLane> generateDetectionLaneDivisions(
   lanelet::ConstLanelets detection_lanelets_all,
-  [[maybe_unused]] const lanelet::routing::RoutingGraphPtr routing_graph_ptr,
-  const double resolution)
+  const lanelet::routing::RoutingGraphPtr routing_graph_ptr, const double resolution,
+  const double curvature_threshold, const double curvature_calculation_ds)
 {
   using lanelet::utils::getCenterlineWithOffset;
   using lanelet::utils::to2D;
@@ -811,6 +855,12 @@ std::vector<DiscretizedLane> generateDetectionLaneDivisions(
   for (const auto & detection_lanelet : detection_lanelets_all) {
     const auto turn_direction = getTurnDirection(detection_lanelet);
     if (turn_direction.compare("left") == 0 || turn_direction.compare("right") == 0) {
+      continue;
+    }
+    const auto fine_centerline =
+      lanelet::utils::generateFineCenterline(detection_lanelet, curvature_calculation_ds);
+    const double highest_curvature = getHighestCurvature(fine_centerline);
+    if (highest_curvature > curvature_threshold) {
       continue;
     }
     detection_lanelets.push_back(detection_lanelet);
@@ -1047,23 +1097,32 @@ Polygon2d generateStuckVehicleDetectAreaPolygon(
 }
 
 bool checkAngleForTargetLanelets(
-  const geometry_msgs::msg::Pose & pose, const lanelet::ConstLanelets & target_lanelets,
-  const double detection_area_angle_thr, const bool consider_wrong_direction_vehicle,
-  const double margin)
+  const geometry_msgs::msg::Pose & pose, const double longitudinal_velocity,
+  const lanelet::ConstLanelets & target_lanelets, const double detection_area_angle_thr,
+  const bool consider_wrong_direction_vehicle, const double dist_margin,
+  const double parked_vehicle_speed_threshold)
 {
   for (const auto & ll : target_lanelets) {
-    if (!lanelet::utils::isInLanelet(pose, ll, margin)) {
+    if (!lanelet::utils::isInLanelet(pose, ll, dist_margin)) {
       continue;
     }
     const double ll_angle = lanelet::utils::getLaneletAngle(ll, pose.position);
     const double pose_angle = tf2::getYaw(pose.orientation);
-    const double angle_diff = tier4_autoware_utils::normalizeRadian(ll_angle - pose_angle);
+    const double angle_diff = tier4_autoware_utils::normalizeRadian(ll_angle - pose_angle, -M_PI);
     if (consider_wrong_direction_vehicle) {
       if (std::fabs(angle_diff) > 1.57 || std::fabs(angle_diff) < detection_area_angle_thr) {
         return true;
       }
     } else {
       if (std::fabs(angle_diff) < detection_area_angle_thr) {
+        return true;
+      }
+      // NOTE: sometimes parked vehicle direction is reversed even if its longitudinal velocity is
+      // positive
+      if (
+        std::fabs(longitudinal_velocity) < parked_vehicle_speed_threshold &&
+        (std::fabs(angle_diff) < detection_area_angle_thr ||
+         (std::fabs(angle_diff + M_PI) < detection_area_angle_thr))) {
         return true;
       }
     }
@@ -1097,8 +1156,9 @@ void cutPredictPathWithDuration(
 TimeDistanceArray calcIntersectionPassingTime(
   const autoware_auto_planning_msgs::msg::PathWithLaneId & path,
   const std::shared_ptr<const PlannerData> & planner_data, const std::set<int> & associative_ids,
-  const int closest_idx, const double time_delay, const double intersection_velocity,
-  const double minimum_ego_velocity)
+  const size_t closest_idx, const size_t last_intersection_stop_line_candidate_idx,
+  const double time_delay, const double intersection_velocity, const double minimum_ego_velocity,
+  const bool use_upstream_velocity, const double minimum_upstream_velocity)
 {
   double dist_sum = 0.0;
   int assigned_lane_found = false;
@@ -1108,7 +1168,9 @@ TimeDistanceArray calcIntersectionPassingTime(
   PathWithLaneId reference_path;
   for (size_t i = closest_idx; i < path.points.size(); ++i) {
     auto reference_point = path.points.at(i);
-    reference_point.point.longitudinal_velocity_mps = intersection_velocity;
+    if (!use_upstream_velocity) {
+      reference_point.point.longitudinal_velocity_mps = intersection_velocity;
+    }
     reference_path.points.push_back(reference_point);
     bool has_objective_lane_id = hasLaneIds(path.points.at(i), associative_ids);
     if (assigned_lane_found && !has_objective_lane_id) {
@@ -1139,10 +1201,13 @@ TimeDistanceArray calcIntersectionPassingTime(
     // use average velocity between p1 and p2
     const double average_velocity =
       (p1.point.longitudinal_velocity_mps + p2.point.longitudinal_velocity_mps) / 2.0;
-    passing_time +=
-      (dist / std::max<double>(
-                minimum_ego_velocity,
-                average_velocity));  // to avoid zero-division
+    const double minimum_ego_velocity_division =
+      (use_upstream_velocity && i > last_intersection_stop_line_candidate_idx)
+        ? minimum_upstream_velocity /* to avoid null division */
+        : minimum_ego_velocity;
+    const double passing_velocity =
+      std::max<double>(minimum_ego_velocity_division, average_velocity);
+    passing_time += (dist / passing_velocity);
 
     time_distance_array.emplace_back(passing_time, dist_sum);
   }
@@ -1178,9 +1243,9 @@ double calcDistanceUntilIntersectionLanelet(
 }
 
 void IntersectionLanelets::update(
-  const bool tl_arrow_solid_on, const InterpolatedPathInfo & interpolated_path_info)
+  const bool is_prioritized, const InterpolatedPathInfo & interpolated_path_info)
 {
-  tl_arrow_solid_on_ = tl_arrow_solid_on;
+  is_prioritized_ = is_prioritized;
   // find the first conflicting/detection area polygon intersecting the path
   const auto & path = interpolated_path_info.path;
   const auto & lane_interval = interpolated_path_info.lane_id_interval.value();
