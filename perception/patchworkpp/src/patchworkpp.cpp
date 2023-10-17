@@ -35,6 +35,18 @@ std::ostream & operator<<(std::basic_ostream<U> & os, const std::vector<T> & val
   os << ")";
   return os;
 }
+
+template <typename U>
+std::ostream & operator<<(
+  std::basic_ostream<U> & os, const std::vector<std::pair<double, double>> & values)
+{
+  os << "(";
+  for (const auto & [v1, v2] : values) {
+    os << "(" << v1 << ", " << v2 << "), ";
+  }
+  os << ")";
+  return os;
+}
 }  // namespace
 
 namespace patchwork_pp
@@ -171,7 +183,7 @@ void PatchWorkPP::cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr c
   update_height_threshold();
 
   // ===== DEBUG =====
-  RCLCPP_INFO_STREAM(get_logger(), "min zone ranges: " << czm_params_.min_zone_ranges());
+  RCLCPP_INFO_STREAM(get_logger(), "min zone ranges: " << czm_params_.minmax_zone_ranges());
   RCLCPP_INFO_STREAM(get_logger(), "elevation thresholds: " << czm_params_.elevation_thresholds());
   RCLCPP_INFO_STREAM(get_logger(), "flatness thresholds: " << czm_params_.flatness_thresholds());
 
@@ -180,10 +192,20 @@ void PatchWorkPP::cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr c
     std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() * 1e-3;
   RCLCPP_INFO_STREAM(get_logger(), "Processing time: " << elapsed);
 
-  if (non_ground_cloud_->points.size() + ground_cloud_->points.size() != in_cloud_->points.size()) {
+  pcl::PointCloud<PointT> in_cloud_filtered;
+  for (const auto & point : in_cloud_->points) {
+    const double radius = calculate_radius(point);
+    if (czm_params_.min_range() <= radius && radius <= czm_params_.max_range()) {
+      in_cloud_filtered.push_back(point);
+    }
+  }
+
+  if (
+    non_ground_cloud_->points.size() + ground_cloud_->points.size() !=
+    in_cloud_filtered.points.size()) {
     RCLCPP_WARN_STREAM(
       get_logger(), "Size of points between input and output is different!! [input]: "
-                      << in_cloud_->points.size() << ", [output]: (total)"
+                      << in_cloud_filtered.points.size() << ", [output]: (total)"
                       << non_ground_cloud_->points.size() + ground_cloud_->points.size()
                       << ", (non_ground): " << non_ground_cloud_->points.size()
                       << ", (ground): " << ground_cloud_->points.size());
@@ -441,20 +463,20 @@ void PatchWorkPP::cloud_to_czm(
 
     const double yaw = calculate_yaw(point);
 
-    for (size_t i = 1; i < czm_params_.num_zone(); ++i) {
-      if (radius <= czm_params_.min_zone_ranges(i - 1) || czm_params_.min_zone_ranges(i) < radius) {
+    for (size_t i = 0; i < czm_params_.num_zone(); ++i) {
+      const auto & [min_zone_range, max_zone_range] = czm_params_.minmax_zone_ranges(i);
+      if (radius < min_zone_range || max_zone_range <= radius) {
         continue;
       }
       const double ring_size = czm_params_.ring_sizes(i);
       const double sector_size = czm_params_.sector_sizes(i);
 
       const int64_t ring_idx = std::min(
-        static_cast<int64_t>((radius - czm_params_.min_zone_ranges(i - 1)) / ring_size),
-        czm_params_.num_rings(i - 1) - 1);
+        static_cast<int64_t>((radius - min_zone_range) / ring_size), czm_params_.num_rings(i) - 1);
       const int64_t sector_idx =
-        std::min(static_cast<int64_t>(yaw / sector_size), czm_params_.num_sectors(i - 1) - 1);
+        std::min(static_cast<int64_t>(yaw / sector_size), czm_params_.num_sectors(i) - 1);
 
-      czm_[i - 1][ring_idx][sector_idx].points.emplace_back(point);
+      czm_[i][ring_idx][sector_idx].points.emplace_back(point);
     }
   }
 }
