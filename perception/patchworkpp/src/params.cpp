@@ -84,22 +84,26 @@ CZMParams::CZMParams(rclcpp::Node * node)
 
   {
     // eq(3) in Patchwork
-    min_zone_ranges_.resize(num_zone_);
-    min_zone_ranges_.at(0) = min_range_;
-    for (size_t i = 1; i < num_zone_; ++i) {
-      const double scale = std::pow(2.0, num_zone_ - i);
-      min_zone_ranges_.at(i) = ((scale - 1) * min_range_ + max_range_) / scale;
+    minmax_zone_ranges_.resize(num_zone_);
+    minmax_zone_ranges_.at(0) = std::make_pair(
+      min_range_,
+      ((std::pow(2.0, num_zone_) - 1.0) * min_range_ + max_range_) / std::pow(2.0, num_zone_));
+    for (size_t i = 1; i < num_zone_ - 1; ++i) {
+      const double min_zone_range = minmax_zone_ranges(i - 1).second;
+      const double max_scale = std::pow(2.0, num_zone_ - (i + 1));
+      const double max_zone_range = ((max_scale - 1.0) * min_range_ + max_range_) / max_scale;
+      minmax_zone_ranges_.at(i) = std::make_pair(min_zone_range, max_zone_range);
     }
+    minmax_zone_ranges_.at(num_zone_ - 1) =
+      std::make_pair((min_range_ + max_range_) / 2.0, max_range_);
   }
 
   {
     ring_sizes_.resize(num_zone_);
-    for (size_t i = 1; i < num_zone_ - 1; ++i) {
-      ring_sizes_.at(i - 1) =
-        (min_zone_ranges_.at(i) - min_zone_ranges_.at(i - 1)) / num_rings_.at(i - 1);
+    for (size_t i = 0; i < num_zone_; ++i) {
+      const auto & [min_zone_range, max_zone_range] = minmax_zone_ranges_.at(i);
+      ring_sizes_.at(i) = (max_zone_range - min_zone_range) / num_rings_.at(i);
     }
-    ring_sizes_.at(num_zone_ - 1) =
-      (max_range_ - min_zone_ranges_.at(num_zone_ - 1)) / num_rings_.at(num_zone_ - 1);
   }
 }
 
