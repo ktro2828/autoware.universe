@@ -195,14 +195,14 @@ void PatchWorkPP::cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr c
   pcl::PointCloud<PointT> in_cloud_filtered;
   for (const auto & point : in_cloud_->points) {
     const double radius = calculate_radius(point);
-    if (czm_params_.min_range() <= radius && radius <= czm_params_.max_range()) {
+    if (czm_params_.min_range() <= radius && radius < czm_params_.max_range()) {
       in_cloud_filtered.push_back(point);
     }
   }
 
   if (
     non_ground_cloud_->points.size() + ground_cloud_->points.size() !=
-    in_cloud_filtered.points.size()) {
+    in_cloud_.points.size()) {
     RCLCPP_WARN_STREAM(
       get_logger(), "Size of points between input and output is different!! [input]: "
                       << in_cloud_filtered.points.size() << ", [output]: (total)"
@@ -456,8 +456,7 @@ void PatchWorkPP::cloud_to_czm(
     const auto & point = in_cloud.points.at(pt_idx);
     const double radius = calculate_radius(point);
 
-    if ((radius < czm_params_.min_range()) || (czm_params_.max_range() < radius)) {
-      non_ground_cloud.points.emplace_back(point);
+    if ((radius < czm_params_.min_range()) || (czm_params_.max_range() <= radius)) {
       continue;
     }
 
