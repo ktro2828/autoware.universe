@@ -17,6 +17,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+#include <utility>
 #include <vector>
 
 namespace patchwork_pp
@@ -66,8 +67,7 @@ private:
   double max_range_;
   size_t num_near_ring_;
   size_t min_num_point_;
-  std::vector<double> min_zone_ranges_;
-  std::vector<double> max_zone_ranges_;
+  std::vector<std::pair<double, double>> minmax_zone_ranges_;
   std::vector<int64_t> num_sectors_;
   std::vector<int64_t> num_rings_;
   std::vector<double> elevation_thresholds_;
@@ -90,11 +90,14 @@ public:
 
   size_t min_num_point() const { return min_num_point_; }
 
-  const std::vector<double> & min_zone_ranges() const { return min_zone_ranges_; }
-  double min_zone_ranges(const size_t i) const { return min_zone_ranges_.at(i); }
-
-  const std::vector<double> & max_zone_ranges() const { return max_zone_ranges_; }
-  double max_zone_ranges(const size_t i) const { return max_zone_ranges_.at(i); }
+  const std::vector<std::pair<double, double>> & minmax_zone_ranges() const
+  {
+    return minmax_zone_ranges_;
+  }
+  const std::pair<double, double> & minmax_zone_ranges(const size_t i) const
+  {
+    return minmax_zone_ranges_.at(i);
+  }
 
   const std::vector<int64_t> & num_sectors() const { return num_sectors_; }
   int64_t num_sectors(const size_t i) const { return num_sectors_.at(i); }
