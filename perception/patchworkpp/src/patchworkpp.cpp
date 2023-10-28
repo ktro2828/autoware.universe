@@ -160,20 +160,22 @@ void PatchWorkPP::cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr c
         } else if (!is_near_ring || is_not_elevated || is_flat) {
           insert_cloud(*sector_ground_cloud_, *ground_cloud_);
         } else {
-          // TGRCandidate candidate(
-          //   zone_idx, *sector_ground_cloud_, is_near_ring, elevation, flatness);
-          // candidates.emplace_back(candidate);
-          insert_cloud(*sector_ground_cloud_, *ground_cloud_);
+          TGRCandidate candidate(
+            zone_idx, *sector_ground_cloud_, is_near_ring, elevation, flatness);
+          candidates.emplace_back(candidate);
+          // insert_cloud(*sector_ground_cloud_, *non_ground_cloud_);
         }
         insert_cloud(*sector_non_ground_cloud_, *non_ground_cloud_);
       }
 
       if (!candidates.empty()) {
-        // temporal_ground_revert(candidates, ring_elevation, ring_flatness);
+        temporal_ground_revert(candidates, ring_elevation, ring_flatness);
         candidates.clear();
-        ring_elevation.clear();
-        ring_flatness.clear();
+        // ring_elevation.clear();
+        // ring_flatness.clear();
       }
+      ring_elevation.clear();
+      ring_flatness.clear();
       ++concentric_idx;
     }
   }
@@ -202,7 +204,7 @@ void PatchWorkPP::cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr c
 
   if (
     non_ground_cloud_->points.size() + ground_cloud_->points.size() !=
-    in_cloud_.points.size()) {
+    in_cloud_filtered.points.size()) {
     RCLCPP_WARN_STREAM(
       get_logger(), "Size of points between input and output is different!! [input]: "
                       << in_cloud_filtered.points.size() << ", [output]: (total)"
@@ -375,21 +377,13 @@ void PatchWorkPP::temporal_ground_revert(
   const std::vector<TGRCandidate> & candidates, const std::vector<double> & ring_elevation,
   const std::vector<double> & ring_flatness)
 {
+  (void)ring_elevation;
   for (const auto & candidate : candidates) {
-    const auto & [mean_elevation, std_elevation] = calculate_mean_stddev(ring_elevation);
     const auto & [mean_flatness, std_flatness] = calculate_mean_stddev(ring_flatness);
 
-    const double ring_elevation_t =
-      mean_elevation + gle_params_.elevation_std_weights(candidate.zone_idx) * std_elevation;
-    const double ring_flatness_t =
-      mean_flatness + gle_params_.flatness_std_weights(candidate.zone_idx) * std_flatness;  // eq(8)
+    const double ring_flatness_t = mean_flatness + 1.5 * std_flatness;  // eq(8)
 
-    const auto prob_elevation =
-      candidate.is_near_ring ? 1 / (1 + std::exp(candidate.elevation - ring_elevation_t)) : 1.0;
-    const auto prob_flatness =
-      prob_elevation < 0.5 ? std::exp(ring_flatness_t - candidate.flatness) : 1.0;
-
-    if (0.5 < prob_elevation * prob_flatness) {
+    if (candidate.flatness < ring_flatness_t) {
       insert_cloud(candidate.ground_cloud, *ground_cloud_);
     } else {
       insert_cloud(candidate.ground_cloud, *non_ground_cloud_);
@@ -447,6 +441,7 @@ void PatchWorkPP::cloud_to_czm(
   const pcl::PointCloud<PointT> & in_cloud, pcl::PointCloud<PointT> & non_ground_cloud,
   std::queue<size_t> & noise_indices)
 {
+  (void)non_ground_cloud;
   for (size_t pt_idx = 0; pt_idx < in_cloud.size(); ++pt_idx) {
     if ((!noise_indices.empty() && pt_idx == noise_indices.front())) {
       noise_indices.pop();
