@@ -2,7 +2,7 @@
   ros__parameters:
     common:
       sensor_height: 1.723 # Sensor height.
-      seed_selection_weight: -1.1 # Weight of height that used in initial seed sampling.
+      seed_selection_weight: -1.2 # Weight of height that used in initial seed sampling.
     rnr: # Reflected Noise Removal
       min_height_threshold: -2.523 # Minimum height threshold. Initial value = -(sensor_height + height_noise_margin(=0.8)).
       min_vertical_angle_threshold: -15.0 # Minimum incident angle threshold.
