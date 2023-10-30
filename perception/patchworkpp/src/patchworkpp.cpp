@@ -171,8 +171,6 @@ void PatchWorkPP::cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr c
       if (!candidates.empty()) {
         temporal_ground_revert(candidates, ring_elevation, ring_flatness);
         candidates.clear();
-        // ring_elevation.clear();
-        // ring_flatness.clear();
       }
       ring_elevation.clear();
       ring_flatness.clear();
@@ -381,7 +379,7 @@ void PatchWorkPP::temporal_ground_revert(
   for (const auto & candidate : candidates) {
     const auto & [mean_flatness, std_flatness] = calculate_mean_stddev(ring_flatness);
 
-    const double ring_flatness_t = mean_flatness + 1.5 * std_flatness;  // eq(8)
+    const double ring_flatness_t = mean_flatness + 6 * std_flatness;  // eq(8)
 
     if (candidate.flatness < ring_flatness_t) {
       insert_cloud(candidate.ground_cloud, *ground_cloud_);
