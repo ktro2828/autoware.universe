@@ -99,10 +99,10 @@ void PatchWorkPP::cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr c
 
   // 2. CZM
   refresh_czm();
-  cloud_to_czm(*in_cloud_, *non_ground_cloud_, noise_indices);
+  cloud_to_czm(*in_cloud_, noise_indices);
 
   std::vector<TGRCandidate> candidates;
-  std::vector<double> ring_elevation, ring_flatness;
+  std::vector<double> ring_flatness;
   size_t concentric_idx = 0;
   for (size_t zone_idx = 0; zone_idx < czm_params_.num_zone(); ++zone_idx) {
     Zone & zone = czm_.at(zone_idx);
@@ -151,7 +151,6 @@ void PatchWorkPP::cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr c
         if (is_upright && is_not_elevated && is_near_ring) {
           elevation_buffer_.at(concentric_idx).emplace_back(elevation);
           flatness_buffer_.at(concentric_idx).emplace_back(flatness);
-          ring_elevation.emplace_back(elevation);
           ring_flatness.emplace_back(flatness);
         }
 
@@ -163,16 +162,14 @@ void PatchWorkPP::cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr c
           TGRCandidate candidate(
             zone_idx, *sector_ground_cloud_, is_near_ring, elevation, flatness);
           candidates.emplace_back(candidate);
-          // insert_cloud(*sector_ground_cloud_, *non_ground_cloud_);
         }
         insert_cloud(*sector_non_ground_cloud_, *non_ground_cloud_);
       }
 
       if (!candidates.empty()) {
-        temporal_ground_revert(candidates, ring_elevation, ring_flatness);
+        temporal_ground_revert(candidates, ring_flatness);
         candidates.clear();
       }
-      ring_elevation.clear();
       ring_flatness.clear();
       ++concentric_idx;
     }
@@ -372,10 +369,8 @@ void PatchWorkPP::estimate_plane(const pcl::PointCloud<PointT> & ground_cloud)
 }
 
 void PatchWorkPP::temporal_ground_revert(
-  const std::vector<TGRCandidate> & candidates, const std::vector<double> & ring_elevation,
-  const std::vector<double> & ring_flatness)
+  const std::vector<TGRCandidate> & candidates, const std::vector<double> & ring_flatness)
 {
-  (void)ring_elevation;
   for (const auto & candidate : candidates) {
     const auto & [mean_flatness, std_flatness] = calculate_mean_stddev(ring_flatness);
 
@@ -436,10 +431,8 @@ void PatchWorkPP::update_height_threshold()
 }
 
 void PatchWorkPP::cloud_to_czm(
-  const pcl::PointCloud<PointT> & in_cloud, pcl::PointCloud<PointT> & non_ground_cloud,
-  std::queue<size_t> & noise_indices)
+  const pcl::PointCloud<PointT> & in_cloud, std::queue<size_t> & noise_indices)
 {
-  (void)non_ground_cloud;
   for (size_t pt_idx = 0; pt_idx < in_cloud.size(); ++pt_idx) {
     if ((!noise_indices.empty() && pt_idx == noise_indices.front())) {
       noise_indices.pop();

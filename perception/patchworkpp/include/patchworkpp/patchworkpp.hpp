@@ -278,12 +278,10 @@ private:
    * @brief
    *
    * @param candidates
-   * @param ring_elevation
    * @param ring_flatness
    */
   void temporal_ground_revert(
-    const std::vector<TGRCandidate> & candidates, const std::vector<double> & ring_elevation,
-    const std::vector<double> & ring_flatness);
+    const std::vector<TGRCandidate> & candidates, const std::vector<double> & ring_flatness);
 
   /**
    * @brief Update elevation thresholds. In paper p5, e <- mean(E)  + a * std_dev(E).
@@ -307,12 +305,9 @@ private:
    * @brief Set input points to Concentric Zone Model a.k.a CZM.
    *
    * @param in_cloud
-   * @param non_ground_cloud
    * @param noise_indices
    */
-  void cloud_to_czm(
-    const pcl::PointCloud<PointT> & in_cloud, pcl::PointCloud<PointT> & non_ground_cloud,
-    std::queue<size_t> & noise_indices);
+  void cloud_to_czm(const pcl::PointCloud<PointT> & in_cloud, std::queue<size_t> & noise_indices);
 
   /**
    * @brief Callback. Estimate ground and non-ground points.
