@@ -99,7 +99,7 @@ void PatchWorkPP::cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr c
 
   // 2. CZM
   refresh_czm();
-  cloud_to_czm(*in_cloud_, *non_ground_cloud_, noise_indices);
+  cloud_to_czm(*in_cloud_, noise_indices);
 
   std::vector<TGRCandidate> candidates;
   std::vector<double> ring_flatness;
@@ -431,8 +431,7 @@ void PatchWorkPP::update_height_threshold()
 }
 
 void PatchWorkPP::cloud_to_czm(
-  const pcl::PointCloud<PointT> & in_cloud, pcl::PointCloud<PointT> & non_ground_cloud,
-  std::queue<size_t> & noise_indices)
+  const pcl::PointCloud<PointT> & in_cloud, std::queue<size_t> & noise_indices)
 {
   for (size_t pt_idx = 0; pt_idx < in_cloud.size(); ++pt_idx) {
     if ((!noise_indices.empty() && pt_idx == noise_indices.front())) {
@@ -444,7 +443,6 @@ void PatchWorkPP::cloud_to_czm(
     const double radius = calculate_radius(point);
 
     if ((radius < czm_params_.min_range()) || (czm_params_.max_range() < radius)) {
-      non_ground_cloud.points.emplace_back(point);
       continue;
     }
 
