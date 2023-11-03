@@ -102,7 +102,7 @@ void PatchWorkPP::cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr c
   cloud_to_czm(*in_cloud_, *non_ground_cloud_, noise_indices);
 
   std::vector<TGRCandidate> candidates;
-  std::vector<double> ring_elevation, ring_flatness;
+  std::vector<double> ring_flatness;
   size_t concentric_idx = 0;
   for (size_t zone_idx = 0; zone_idx < czm_params_.num_zone(); ++zone_idx) {
     Zone & zone = czm_.at(zone_idx);
@@ -151,7 +151,6 @@ void PatchWorkPP::cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr c
         if (is_upright && is_not_elevated && is_near_ring) {
           elevation_buffer_.at(concentric_idx).emplace_back(elevation);
           flatness_buffer_.at(concentric_idx).emplace_back(flatness);
-          ring_elevation.emplace_back(elevation);
           ring_flatness.emplace_back(flatness);
         }
 
@@ -160,18 +159,15 @@ void PatchWorkPP::cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr c
         } else if (!is_near_ring || is_not_elevated || is_flat) {
           insert_cloud(*sector_ground_cloud_, *ground_cloud_);
         } else {
-          // TGRCandidate candidate(
-          //   zone_idx, *sector_ground_cloud_, is_near_ring, elevation, flatness);
-          // candidates.emplace_back(candidate);
-          insert_cloud(*sector_ground_cloud_, *ground_cloud_);
+          TGRCandidate candidate(zone_idx, *sector_ground_cloud_, flatness);
+          candidates.emplace_back(candidate);
         }
         insert_cloud(*sector_non_ground_cloud_, *non_ground_cloud_);
       }
 
       if (!candidates.empty()) {
-        // temporal_ground_revert(candidates, ring_elevation, ring_flatness);
+        temporal_ground_revert(candidates, ring_flatness);
         candidates.clear();
-        ring_elevation.clear();
         ring_flatness.clear();
       }
       ++concentric_idx;
@@ -372,24 +368,15 @@ void PatchWorkPP::estimate_plane(const pcl::PointCloud<PointT> & ground_cloud)
 }
 
 void PatchWorkPP::temporal_ground_revert(
-  const std::vector<TGRCandidate> & candidates, const std::vector<double> & ring_elevation,
-  const std::vector<double> & ring_flatness)
+  const std::vector<TGRCandidate> & candidates, const std::vector<double> & ring_flatness)
 {
   for (const auto & candidate : candidates) {
-    const auto & [mean_elevation, std_elevation] = calculate_mean_stddev(ring_elevation);
     const auto & [mean_flatness, std_flatness] = calculate_mean_stddev(ring_flatness);
 
-    const double ring_elevation_t =
-      mean_elevation + gle_params_.elevation_std_weights(candidate.zone_idx) * std_elevation;
     const double ring_flatness_t =
       mean_flatness + gle_params_.flatness_std_weights(candidate.zone_idx) * std_flatness;  // eq(8)
 
-    const auto prob_elevation =
-      candidate.is_near_ring ? 1 / (1 + std::exp(candidate.elevation - ring_elevation_t)) : 1.0;
-    const auto prob_flatness =
-      prob_elevation < 0.5 ? std::exp(ring_flatness_t - candidate.flatness) : 1.0;
-
-    if (0.5 < prob_elevation * prob_flatness) {
+    if (candidate.flatness < ring_flatness_t) {
       insert_cloud(candidate.ground_cloud, *ground_cloud_);
     } else {
       insert_cloud(candidate.ground_cloud, *non_ground_cloud_);
