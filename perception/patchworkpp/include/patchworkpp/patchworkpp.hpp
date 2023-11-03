@@ -48,18 +48,11 @@ public:
   {
     const size_t zone_idx;
     const pcl::PointCloud<PointT> ground_cloud;
-    const bool is_near_ring;
-    const double elevation;
     const double flatness;
 
     explicit TGRCandidate(
-      const size_t _zone_idx, const pcl::PointCloud<PointT> & _ground_cloud,
-      const bool _is_near_ring, const double _elevation, const double _flatness)
-    : zone_idx(_zone_idx),
-      ground_cloud(_ground_cloud),
-      is_near_ring(_is_near_ring),
-      elevation(_elevation),
-      flatness(_flatness)
+      const size_t _zone_idx, const pcl::PointCloud<PointT> & _ground_cloud, const double _flatness)
+    : zone_idx(_zone_idx), ground_cloud(_ground_cloud), flatness(_flatness)
     {
     }
   };
@@ -278,12 +271,10 @@ private:
    * @brief
    *
    * @param candidates
-   * @param ring_elevation
    * @param ring_flatness
    */
   void temporal_ground_revert(
-    const std::vector<TGRCandidate> & candidates, const std::vector<double> & ring_elevation,
-    const std::vector<double> & ring_flatness);
+    const std::vector<TGRCandidate> & candidates, const std::vector<double> & ring_flatness);
 
   /**
    * @brief Update elevation thresholds. In paper p5, e <- mean(E)  + a * std_dev(E).
