@@ -48,18 +48,11 @@ public:
   {
     const size_t zone_idx;
     const pcl::PointCloud<PointT> ground_cloud;
-    const bool is_near_ring;
-    const double elevation;
     const double flatness;
 
     explicit TGRCandidate(
-      const size_t _zone_idx, const pcl::PointCloud<PointT> & _ground_cloud,
-      const bool _is_near_ring, const double _elevation, const double _flatness)
-    : zone_idx(_zone_idx),
-      ground_cloud(_ground_cloud),
-      is_near_ring(_is_near_ring),
-      elevation(_elevation),
-      flatness(_flatness)
+      const size_t _zone_idx, const pcl::PointCloud<PointT> & _ground_cloud, const double _flatness)
+    : zone_idx(_zone_idx), ground_cloud(_ground_cloud), flatness(_flatness)
     {
     }
   };

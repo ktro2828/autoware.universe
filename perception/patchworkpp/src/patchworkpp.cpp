@@ -159,8 +159,7 @@ void PatchWorkPP::cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr c
         } else if (!is_near_ring || is_not_elevated || is_flat) {
           insert_cloud(*sector_ground_cloud_, *ground_cloud_);
         } else {
-          TGRCandidate candidate(
-            zone_idx, *sector_ground_cloud_, is_near_ring, elevation, flatness);
+          TGRCandidate candidate(zone_idx, *sector_ground_cloud_, flatness);
           candidates.emplace_back(candidate);
         }
         insert_cloud(*sector_non_ground_cloud_, *non_ground_cloud_);
@@ -169,8 +168,8 @@ void PatchWorkPP::cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr c
       if (!candidates.empty()) {
         temporal_ground_revert(candidates, ring_flatness);
         candidates.clear();
+        ring_flatness.clear();
       }
-      ring_flatness.clear();
       ++concentric_idx;
     }
   }
@@ -374,7 +373,8 @@ void PatchWorkPP::temporal_ground_revert(
   for (const auto & candidate : candidates) {
     const auto & [mean_flatness, std_flatness] = calculate_mean_stddev(ring_flatness);
 
-    const double ring_flatness_t = mean_flatness + 6 * std_flatness;  // eq(8)
+    const double ring_flatness_t =
+      mean_flatness + gle_params_.flatness_std_weights(candidate.zone_idx) * std_flatness;  // eq(8)
 
     if (candidate.flatness < ring_flatness_t) {
       insert_cloud(candidate.ground_cloud, *ground_cloud_);
