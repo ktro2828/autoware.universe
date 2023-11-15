@@ -168,8 +168,8 @@ void PatchWorkPP::cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr c
       if (!candidates.empty()) {
         temporal_ground_revert(candidates, ring_flatness);
         candidates.clear();
-        ring_flatness.clear();
       }
+      ring_flatness.clear();
       ++concentric_idx;
     }
   }
