@@ -23,32 +23,6 @@
 #include <chrono>
 #include <ostream>
 
-namespace
-{
-template <typename T, typename U>
-std::ostream & operator<<(std::basic_ostream<U> & os, const std::vector<T> & values)
-{
-  os << "(";
-  for (const T & v : values) {
-    os << v << ", ";
-  }
-  os << ")";
-  return os;
-}
-
-template <typename U>
-std::ostream & operator<<(
-  std::basic_ostream<U> & os, const std::vector<std::pair<double, double>> & values)
-{
-  os << "(";
-  for (const auto & [v1, v2] : values) {
-    os << "(" << v1 << ", " << v2 << "), ";
-  }
-  os << ")";
-  return os;
-}
-}  // namespace
-
 namespace patchwork_pp
 {
 PatchWorkPP::PatchWorkPP(const rclcpp::NodeOptions & options)
@@ -177,38 +151,6 @@ void PatchWorkPP::cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr c
   update_elevation_thresholds();
   update_flatness_thresholds();
   update_height_threshold();
-
-  // ===== DEBUG =====
-  RCLCPP_INFO_STREAM(get_logger(), "min zone ranges: " << czm_params_.minmax_zone_ranges());
-  RCLCPP_INFO_STREAM(get_logger(), "elevation thresholds: " << czm_params_.elevation_thresholds());
-  RCLCPP_INFO_STREAM(get_logger(), "flatness thresholds: " << czm_params_.flatness_thresholds());
-
-  end = std::chrono::system_clock::now();
-  double elapsed =
-    std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() * 1e-3;
-  RCLCPP_INFO_STREAM(get_logger(), "Processing time: " << elapsed);
-
-  pcl::PointCloud<PointT> in_cloud_filtered;
-  for (const auto & point : in_cloud_->points) {
-    const double radius = calculate_radius(point);
-    if (czm_params_.min_range() <= radius && radius <= czm_params_.max_range()) {
-      in_cloud_filtered.push_back(point);
-    }
-  }
-
-  if (
-    non_ground_cloud_->points.size() + ground_cloud_->points.size() !=
-    in_cloud_filtered.points.size()) {
-    RCLCPP_WARN_STREAM(
-      get_logger(), "Size of points between input and output is different!! [input]: "
-                      << in_cloud_filtered.points.size() << ", [output]: (total)"
-                      << non_ground_cloud_->points.size() + ground_cloud_->points.size()
-                      << ", (non_ground): " << non_ground_cloud_->points.size()
-                      << ", (ground): " << ground_cloud_->points.size());
-  } else {
-    RCLCPP_INFO(get_logger(), "Size of points between input and output is same");
-  }
-  // ==================
 
   publish(cloud_msg->header);
 }
@@ -434,7 +376,7 @@ void PatchWorkPP::cloud_to_czm(
   const pcl::PointCloud<PointT> & in_cloud, std::queue<size_t> & noise_indices)
 {
   for (size_t pt_idx = 0; pt_idx < in_cloud.size(); ++pt_idx) {
-    if ((!noise_indices.empty() && pt_idx == noise_indices.front())) {
+    if (!noise_indices.empty() && pt_idx == noise_indices.front()) {
       noise_indices.pop();
       continue;
     }
@@ -442,7 +384,7 @@ void PatchWorkPP::cloud_to_czm(
     const auto & point = in_cloud.points.at(pt_idx);
     const double radius = calculate_radius(point);
 
-    if ((radius < czm_params_.min_range()) || (czm_params_.max_range() < radius)) {
+    if (radius < czm_params_.min_range() || czm_params_.max_range() < radius) {
       continue;
     }
 

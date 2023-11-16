@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <launch>
-  <arg name="input/pointcloud" default="/kitti/velo/pointcloud"/>
-  <arg name="output/pointcloud" default="/output/pointcloud"/>
+  <arg name="input/pointcloud" default="input/pointcloud"/>
+  <arg name="output/pointcloud" default="output/pointcloud"/>
   <arg name="config_file" default="$(find-pkg-share patchworkpp)/config/patchworkpp.params.yaml"/>
   <arg name="debug" default="true"/>
 
