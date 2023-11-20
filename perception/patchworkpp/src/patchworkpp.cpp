@@ -244,8 +244,7 @@ void PatchWorkPP::estimate_vertical_plane(
     auto tmp_cloud = non_vertical_cloud;
     non_vertical_cloud.clear();
     for (const auto & point : tmp_cloud.points) {
-      Eigen::Vector3d p(
-        point.x , point.y , point.z);
+      Eigen::Vector3d p(point.x, point.y, point.z);
       const double distance = std::abs(v_normal_.dot(p));                               // eq(2)
       const double angle = std::abs(0.5 * M_PI - std::acos(v_normal_.dot(u_normal_)));  // eq(3)
       if (
@@ -272,17 +271,16 @@ void PatchWorkPP::estimate_ground_plane(
   for (size_t n = 0; n < rpf_params_.num_iterator(); ++n) {
     tmp_ground_cloud.clear();
     for (const auto & point : in_cloud.points) {
-      Eigen::Vector3d p(
-        point.x , point.y , point.z );
+      Eigen::Vector3d p(point.x, point.y, point.z);
       const double distance = v_normal_.dot(p);
       if (n < rpf_params_.num_iterator() - 1) {
-        if (distance < rpf_params_.max_distance_threshold()-d_) {
+        if (distance < rpf_params_.max_distance_threshold() - d_) {
           tmp_ground_cloud.points.emplace_back(point);
         }
       } else {
-        if (distance < rpf_params_.max_distance_threshold()-d_) {
+        if (distance < rpf_params_.max_distance_threshold() - d_) {
           ground_cloud.points.emplace_back(point);
-          
+
         } else {
           non_ground_cloud.points.emplace_back(point);
         }
