@@ -31,7 +31,8 @@ PatchWorkPP::PatchWorkPP(const rclcpp::NodeOptions & options)
   rnr_params_(this),
   czm_params_(this),
   rpf_params_(this),
-  gle_params_(this)
+  gle_params_(this),
+  tgr_params_(this)
 {
   debug_ = declare_parameter<bool>("debug");
 
@@ -268,8 +269,6 @@ void PatchWorkPP::estimate_ground_plane(
   sample_initial_seed(zone_idx, in_cloud, tmp_ground_cloud, rpf_params_.gpf_seed_margin());
   estimate_plane(tmp_ground_cloud);
 
-
-
   for (size_t n = 0; n < rpf_params_.num_iterator(); ++n) {
     tmp_ground_cloud.clear();
     for (const auto & point : in_cloud.points) {
@@ -324,7 +323,7 @@ void PatchWorkPP::temporal_ground_revert(
     const auto & [mean_flatness, std_flatness] = calculate_mean_stddev(ring_flatness);
 
     const double ring_flatness_t =
-      mean_flatness +  3* std_flatness;  // eq(8)
+      mean_flatness + tgr_params_.flatness_std_weights(candidate.zone_idx) * std_flatness;  // eq(8)
 
     if (candidate.flatness < ring_flatness_t) {
       insert_cloud(candidate.ground_cloud, *ground_cloud_);

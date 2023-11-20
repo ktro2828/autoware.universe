@@ -65,6 +65,7 @@ private:
   CZMParams czm_params_;
   RPFParams rpf_params_;
   GLEParams gle_params_;
+  TGRParams tgr_params_;
 
   bool debug_;
 
