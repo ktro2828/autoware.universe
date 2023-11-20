@@ -113,18 +113,16 @@ void PatchWorkPP::cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr c
         // centroid_ = (cx, cy, cz)
         const double uprightness = v_normal_(2);
         const double elevation = centroid_(2);
-        // RCLCPP_WARN_STREAM(get_logger(), "elevation: " << elevation);
         const double flatness = v_eigenvalues_.minCoeff();
 
         const bool is_near_ring = concentric_idx < czm_params_.num_near_ring();
         const bool is_upright = gle_params_.uprightness_threshold() < uprightness;
         const bool is_not_elevated =
-          is_near_ring ? elevation < czm_params_.elevation_thresholds(concentric_idx) : false;
+          is_near_ring ? elevation < czm_params_.elevation_thresholds(zone_idx) : false;
         const bool is_flat =
-          is_near_ring ? flatness < czm_params_.flatness_thresholds(concentric_idx) : false;
+          is_near_ring ? flatness < czm_params_.flatness_thresholds(zone_idx) : false;
 
         if (is_upright && is_not_elevated && is_near_ring) {
-          RCLCPP_WARN_STREAM(get_logger(), "contcentric_idx: " << concentric_idx << ", "<< zone_idx << ", " << ring_idx << ", " << sector_idx << ", " << elevation );
           elevation_buffer_.at(concentric_idx).emplace_back(elevation);
           flatness_buffer_.at(concentric_idx).emplace_back(flatness);
           ring_flatness.emplace_back(flatness);
@@ -147,7 +145,6 @@ void PatchWorkPP::cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr c
       }
       ring_flatness.clear();
       ++concentric_idx;
-      // RCLCPP_WARN_STREAM(get_logger(), "concentric_idx: " << concentric_idx);
     }
   }
 
@@ -187,7 +184,7 @@ void PatchWorkPP::sample_initial_seed(
   if (zone_idx == 0) {
     double lowest_z_in_close_zone = common_params_.lowest_z_in_close_zone();
     for (const auto & point : in_cloud.points) {
-      if (lowest_z_in_close_zone <= point.z) {
+      if (lowest_z_in_close_zone < point.z) {
         break;
       }
       ++init_idx;
@@ -271,55 +268,32 @@ void PatchWorkPP::estimate_ground_plane(
   sample_initial_seed(zone_idx, in_cloud, tmp_ground_cloud, rpf_params_.gpf_seed_margin());
   estimate_plane(tmp_ground_cloud);
 
-    // pointcloud to matrix
-  Eigen::MatrixXf points(in_cloud.points.size(), 3);
-  int j = 0;
-  for (auto & p : in_cloud.points) {
-    points.row(j++) << p.x, p.y, p.z;
-  }
+
 
   for (size_t n = 0; n < rpf_params_.num_iterator(); ++n) {
     tmp_ground_cloud.clear();
-    // ground plane model
-    Eigen::VectorXf result = points * v_normal_.cast<float>();
-    // threshold filter
-    for (int r = 0; r < result.rows(); r++) {
+    for (const auto & point : in_cloud.points) {
+      Eigen::Vector3d p(
+        point.x , point.y , point.z );
+      const double distance = v_normal_.dot(p);
       if (n < rpf_params_.num_iterator() - 1) {
-        if (result[r] < rpf_params_.max_distance_threshold() - d_) {
-          tmp_ground_cloud.points.push_back(in_cloud[r]);
+        if (distance < rpf_params_.max_distance_threshold()-d_) {
+          tmp_ground_cloud.points.emplace_back(point);
         }
-      } else {  // Final stage
-        if (result[r] < rpf_params_.max_distance_threshold() - d_) {
-          ground_cloud.points.push_back(in_cloud[r]);
+      } else {
+        if (distance < rpf_params_.max_distance_threshold()-d_) {
+          ground_cloud.points.emplace_back(point);
+          
         } else {
-          non_ground_cloud.points.push_back(in_cloud[r]);
+          non_ground_cloud.points.emplace_back(point);
         }
       }
     }
-
-    // for (const auto & point : in_cloud.points) {
-    //   Eigen::Vector3d p(
-    //     point.x , point.y , point.z );
-    //   const double distance = v_normal_.dot(p);
-    //   if (n < rpf_params_.num_iterator() - 1) {
-    //     if (distance < rpf_params_.max_distance_threshold()-d_) {
-    //       tmp_ground_cloud.points.emplace_back(point);
-    //     }
-    //   } else {
-    //     if (distance < rpf_params_.max_distance_threshold()-d_) {
-    //       ground_cloud.points.emplace_back(point);
-          
-    //     } else {
-    //       non_ground_cloud.points.emplace_back(point);
-    //     }
-    //   }
-    // }
 
     if (n < rpf_params_.num_iterator() - 1) {
       estimate_plane(tmp_ground_cloud);
     } else {
       estimate_plane(ground_cloud);
-        RCLCPP_WARN_STREAM(get_logger(), "elevation: " << centroid_(2));
     }
   }
 }
@@ -362,14 +336,13 @@ void PatchWorkPP::temporal_ground_revert(
 
 void PatchWorkPP::update_elevation_thresholds()
 {
-  for (size_t m = 0; m < czm_params_.num_near_ring(); m++) {
+  for (size_t m = 0; m < czm_params_.num_near_ring(); ++m) {
     if (elevation_buffer_.at(m).empty()) {
       continue;
     }
     const auto & [mean, stddev] = calculate_mean_stddev(elevation_buffer_.at(m));
     const double new_threshold = mean + gle_params_.elevation_std_weights(m) * stddev;  // eq(5)
     czm_params_.update_elevation_threshold(m, new_threshold);
-    RCLCPP_INFO_STREAM(get_logger(), "all elevation_thresholds: " << czm_params_.elevation_thresholds(0) << ", " << czm_params_.elevation_thresholds(1) << ", " << czm_params_.elevation_thresholds(2) << ", " << czm_params_.elevation_thresholds(3));
 
     const int num_exceed = elevation_buffer_.at(m).size() - gle_params_.buffer_storage();
     if (0 < num_exceed) {
