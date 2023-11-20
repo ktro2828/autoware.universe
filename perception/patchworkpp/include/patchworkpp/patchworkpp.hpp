@@ -76,6 +76,7 @@ private:
   Eigen::Vector4d centroid_;
   Eigen::Vector3d v_normal_;
   Eigen::Vector3d v_eigenvalues_;
+  double d_;
   const Eigen::Vector3d u_normal_{Eigen::Vector3d(0, 0, 1)};
 
   /* Buffer of elevation and flatness for each n-th sector*/
