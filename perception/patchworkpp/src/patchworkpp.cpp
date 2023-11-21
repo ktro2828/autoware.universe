@@ -33,7 +33,8 @@ PatchWorkPP::PatchWorkPP(const rclcpp::NodeOptions & options)
   rpf_params_(this),
   gle_params_(this)
 {
-  debug_ = declare_parameter<bool>("debug");
+  max_queue_size_ = declare_parameter<int64_t>("max_queue_size", 5);
+  debug_ = declare_parameter<bool>("debug", false);
 
   in_cloud_ = std::make_shared<pcl::PointCloud<PointT>>();
   ground_cloud_ = std::make_shared<pcl::PointCloud<PointT>>();
@@ -50,8 +51,10 @@ PatchWorkPP::PatchWorkPP(const rclcpp::NodeOptions & options)
   flatness_buffer_.resize(czm_params_.num_near_ring());
 
   sub_cloud_ = create_subscription<sensor_msgs::msg::PointCloud2>(
-    "input/pointcloud", 10, std::bind(&PatchWorkPP::cloud_callback, this, std::placeholders::_1));
-  pub_non_ground_cloud_ = create_publisher<sensor_msgs::msg::PointCloud2>("output/pointcloud", 1);
+    "input/pointcloud", rclcpp::SensorDataQoS().keep_last(max_queue_size_),
+    std::bind(&PatchWorkPP::cloud_callback, this, std::placeholders::_1));
+  pub_non_ground_cloud_ = create_publisher<sensor_msgs::msg::PointCloud2>(
+    "output/pointcloud", rclcpp::SensorDataQoS().keep_last(max_queue_size_));
 
   if (debug_) {
     initialize_debugger();
