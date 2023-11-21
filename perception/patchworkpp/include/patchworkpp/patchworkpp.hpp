@@ -77,6 +77,7 @@ private:
   Eigen::Vector3d v_normal_;
   Eigen::Vector3d v_eigenvalues_;
   const Eigen::Vector3d u_normal_{Eigen::Vector3d(0, 0, 1)};
+  double d_k_;
 
   /* Buffer of elevation and flatness for each n-th sector*/
   std::vector<std::vector<double>> elevation_buffer_;
