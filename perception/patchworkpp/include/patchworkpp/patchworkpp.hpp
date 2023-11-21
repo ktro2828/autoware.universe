@@ -66,6 +66,7 @@ private:
   RPFParams rpf_params_;
   GLEParams gle_params_;
 
+  size_t max_queue_size_;
   bool debug_;
 
   pcl::PointCloud<PointT>::Ptr in_cloud_, ground_cloud_, non_ground_cloud_,
