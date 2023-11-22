@@ -250,7 +250,7 @@ void PatchWorkPP::estimate_vertical_plane(
       const double distance = std::abs(v_normal_.dot(p) + d_k_);                        // eq(2)
       const double angle = std::abs(0.5 * M_PI - std::acos(v_normal_.dot(u_normal_)));  // eq(3)
       if (
-        (distance < rpf_params_.max_vertical_distance_threshold()) &&
+        distance < rpf_params_.max_vertical_distance_threshold() &&
         angle < rpf_params_.max_angle_threshold()) {
         non_ground_cloud.points.emplace_back(point);
       } else {
