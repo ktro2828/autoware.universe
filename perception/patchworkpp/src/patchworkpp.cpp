@@ -34,7 +34,8 @@ PatchWorkPP::PatchWorkPP(const rclcpp::NodeOptions & options)
   gle_params_(this),
   tgr_params_(this)
 {
-  debug_ = declare_parameter<bool>("debug");
+  max_queue_size_ = declare_parameter<int64_t>("max_queue_size", 5);
+  debug_ = declare_parameter<bool>("debug", false);
 
   in_cloud_ = std::make_shared<pcl::PointCloud<PointT>>();
   ground_cloud_ = std::make_shared<pcl::PointCloud<PointT>>();
@@ -51,8 +52,10 @@ PatchWorkPP::PatchWorkPP(const rclcpp::NodeOptions & options)
   flatness_buffer_.resize(czm_params_.num_near_ring());
 
   sub_cloud_ = create_subscription<sensor_msgs::msg::PointCloud2>(
-    "input/pointcloud", 10, std::bind(&PatchWorkPP::cloud_callback, this, std::placeholders::_1));
-  pub_non_ground_cloud_ = create_publisher<sensor_msgs::msg::PointCloud2>("output/pointcloud", 1);
+    "input/pointcloud", rclcpp::SensorDataQoS().keep_last(max_queue_size_),
+    std::bind(&PatchWorkPP::cloud_callback, this, std::placeholders::_1));
+  pub_non_ground_cloud_ = create_publisher<sensor_msgs::msg::PointCloud2>(
+    "output/pointcloud", rclcpp::SensorDataQoS().keep_last(max_queue_size_));
 
   if (debug_) {
     initialize_debugger();
@@ -245,10 +248,10 @@ void PatchWorkPP::estimate_vertical_plane(
     non_vertical_cloud.clear();
     for (const auto & point : tmp_cloud.points) {
       Eigen::Vector3d p(point.x, point.y, point.z);
-      const double distance = std::abs(v_normal_.dot(p));                               // eq(2)
+      const double distance = std::abs(v_normal_.dot(p) + d_k_);                        // eq(2)
       const double angle = std::abs(0.5 * M_PI - std::acos(v_normal_.dot(u_normal_)));  // eq(3)
       if (
-        (distance < rpf_params_.max_vertical_distance_threshold() - d_) &&
+        (distance < rpf_params_.max_vertical_distance_threshold()) &&
         angle < rpf_params_.max_angle_threshold()) {
         non_ground_cloud.points.emplace_back(point);
       } else {
@@ -272,15 +275,15 @@ void PatchWorkPP::estimate_ground_plane(
     tmp_ground_cloud.clear();
     for (const auto & point : in_cloud.points) {
       Eigen::Vector3d p(point.x, point.y, point.z);
-      const double distance = v_normal_.dot(p);
+      const double distance = v_normal_.dot(p);  // d^l_n
+      const bool is_ground = distance < rpf_params_.max_distance_threshold() - d_k_;
       if (n < rpf_params_.num_iterator() - 1) {
-        if (distance < rpf_params_.max_distance_threshold() - d_) {
+        if (is_ground) {
           tmp_ground_cloud.points.emplace_back(point);
         }
       } else {
-        if (distance < rpf_params_.max_distance_threshold() - d_) {
+        if (is_ground) {
           ground_cloud.points.emplace_back(point);
-
         } else {
           non_ground_cloud.points.emplace_back(point);
         }
@@ -310,8 +313,8 @@ void PatchWorkPP::estimate_plane(const pcl::PointCloud<PointT> & ground_cloud)
 
   Eigen::Vector3d centroid_3d = centroid_.head<3>() / centroid_(3);
 
-  // plane coefficient
-  d_ = -v_normal_.dot(centroid_3d);
+  // plan coefficient d_k eq(6)
+  d_k_ = -v_normal_.dot(centroid_3d);
 }
 
 void PatchWorkPP::temporal_ground_revert(
