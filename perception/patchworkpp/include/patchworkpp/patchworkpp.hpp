@@ -19,6 +19,8 @@
 
 #include <pcl/impl/point_types.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <tier4_autoware_utils/ros/debug_publisher.hpp>
+#include <tier4_autoware_utils/system/stop_watch.hpp>
 
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <std_msgs/msg/header.hpp>
@@ -27,6 +29,8 @@
 #include <pcl/common/common.h>
 #include <pcl_conversions/pcl_conversions.h>
 
+#include <chrono>
+#include <memory>
 #include <numeric>
 #include <queue>
 #include <utility>
@@ -37,6 +41,8 @@ namespace patchwork_pp
 using PointT = pcl::PointXYZI;
 using Ring = std::vector<pcl::PointCloud<PointT>>;
 using Zone = std::vector<Ring>;
+using StopWatch = tier4_autoware_utils::StopWatch<std::chrono::milliseconds>;
+using DebugPublisher = tier4_autoware_utils::DebugPublisher;
 
 class PatchWorkPP : public rclcpp::Node
 {
@@ -85,8 +91,11 @@ private:
   std::vector<std::vector<double>> flatness_buffer_;
 
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_non_ground_cloud_,
-    pub_ground_cloud_;
+    pub_ground_cloud_{nullptr};
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_cloud_;
+
+  std::unique_ptr<DebugPublisher> debug_publisher_ptr_{nullptr};
+  std::unique_ptr<StopWatch> stop_watch_ptr_{nullptr};
 
   /**
    * @brief Initialize debugger to publish ground cloud, if `debug=true`.
@@ -96,6 +105,11 @@ private:
   {
     pub_ground_cloud_ =
       create_publisher<sensor_msgs::msg::PointCloud2>("~/debug/ground/pointcloud", 1);
+
+    debug_publisher_ptr_ = std::make_unique<DebugPublisher>(this, "patchwork_pp");
+    stop_watch_ptr_ = std::make_unique<StopWatch>();
+    stop_watch_ptr_->tic("cyclic_time");
+    stop_watch_ptr_->tic("processing_time");
   }
 
   Zone initialize_zone(const size_t zone_idx)
@@ -146,6 +160,13 @@ private:
       pcl::toROSMsg(*ground_cloud_, ground_cloud_msg);
       ground_cloud_msg.header = header;
       pub_ground_cloud_->publish(ground_cloud_msg);
+
+      const double cyclic_time_ms = stop_watch_ptr_->toc("cyclic_time", true);
+      const double processing_time_ms = stop_watch_ptr_->toc("processing_time", true);
+      debug_publisher_ptr_->publish<tier4_debug_msgs::msg::Float64Stamped>(
+        "debug/cyclic_time_ms", cyclic_time_ms);
+      debug_publisher_ptr_->publish<tier4_debug_msgs::msg::Float64Stamped>(
+        "debug/processing_time_ms", processing_time_ms);
     }
   }
 

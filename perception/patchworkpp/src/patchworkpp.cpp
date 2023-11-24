@@ -19,10 +19,6 @@
 #include <pcl/common/centroid.h>
 #include <pcl/common/io.h>
 
-// for debug
-#include <chrono>
-#include <ostream>
-
 namespace patchwork_pp
 {
 PatchWorkPP::PatchWorkPP(const rclcpp::NodeOptions & options)
@@ -63,6 +59,10 @@ PatchWorkPP::PatchWorkPP(const rclcpp::NodeOptions & options)
 
 void PatchWorkPP::cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr cloud_msg)
 {
+  if (debug_) {
+    stop_watch_ptr_->toc("processing_time", true);
+  }
+
   std::chrono::system_clock::time_point start, end;
   start = std::chrono::system_clock::now();
 
