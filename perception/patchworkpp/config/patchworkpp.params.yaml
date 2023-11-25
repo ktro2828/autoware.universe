@@ -32,4 +32,4 @@
       height_noise_margin: -0.5 # Margin that is used to update height noise threshold.
       buffer_storage: 1000
     tgr: # Temporal Ground Revert
-      flatness_std_weights: [1.5, 1.5, 1.5, 1.5] # Weights of standard deviation that is used to update flatness for each zone.
+      flatness_std_weights: [1.5, 1.5, 1.5, 1.5] # Weights of standard deviation that is used to revert ground for each zone.
