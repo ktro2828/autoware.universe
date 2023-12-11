@@ -25,6 +25,8 @@ ament_auto_add_library(ground_segmentation SHARED
   src/ray_ground_filter_nodelet.cpp
   src/ransac_ground_filter_nodelet.cpp
   src/scan_ground_filter_nodelet.cpp
+  src/patchwork/nodelet.cpp
+  src/patchwork/params.cpp
 )
 
 target_link_libraries(ground_segmentation
@@ -55,6 +57,10 @@ rclcpp_components_register_node(ground_segmentation
 rclcpp_components_register_node(ground_segmentation
   PLUGIN "ground_segmentation::ScanGroundFilterComponent"
   EXECUTABLE scan_ground_filter_node)
+
+# -- PatchWork --
+rclcpp_components_register_node(
+  ground_segmentation PLUGIN "ground_segmentation::PatchWorkComponent" EXECUTABLE patchwork_node)
 
 
 ament_auto_package(INSTALL_TO_SHARE

@@ -30,6 +30,8 @@
   <depend>tf2_eigen</depend>
   <depend>tf2_ros</depend>
   <depend>tf2_sensor_msgs</depend>
+  <depend>tier4_autoware_utils</depend>
+  <depend>tier4_debug_msgs</depend>
   <depend>vehicle_info_util</depend>
   <depend>yaml-cpp</depend>
 
