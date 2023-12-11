@@ -186,5 +186,20 @@ public:
   int buffer_storage() const { return buffer_storage_; }
 };  // class GLEParams
 
+class TGRParams
+{
+private:
+  std::vector<double> flatness_std_weights_;
+
+public:
+  TGRParams() = delete;
+
+  explicit TGRParams(rclcpp::Node * node);
+
+  const std::vector<double> & flatness_std_weights() const { return flatness_std_weights_; }
+  double flatness_std_weights(const size_t i) const { return flatness_std_weights_.at(i); }
+
+};  // class TGRParams
+
 }  // namespace patchwork_pp
 #endif  // PATCHWORKPP__PARAMS_HPP_

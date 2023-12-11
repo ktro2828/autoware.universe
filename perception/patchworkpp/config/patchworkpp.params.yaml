@@ -13,8 +13,8 @@
       num_zone: 4
       num_near_ring: 4
       min_num_point: 10 # Minimum number of points that should be contained in each zone.
-      num_sectors: [32, 128, 128, 128] # Number of sectors for each zone.
-      num_rings: [2, 4, 4, 4] # Number of rings of each zone.
+      num_sectors: [12, 24, 24, 24] # Number of sectors for each zone.
+      num_rings: [3, 8, 4, 4] # Number of rings of each zone.
       elevation_thresholds: [1.5, 1.5, 1.5, 1.5] # Initial threshold values for elevation.
       flatness_thresholds: [0.0, 0.0, 0.0, 0.0] # Initial threshold values for flatness.
     rpf: # Region-wise Plane Fitting (R-VPF & R-GPF)
@@ -31,3 +31,5 @@
       flatness_std_weights: [1.0, 1.0, 1.0, 1.0] # Weights of standard deviation that is used to update flatness for each zone.
       height_noise_margin: -0.5 # Margin that is used to update height noise threshold.
       buffer_storage: 1000
+    tgr: # Temporal Ground Revert
+      flatness_std_weights: [1.5, 1.5, 1.5, 1.5] # Weights of standard deviation that is used to revert ground for each zone.

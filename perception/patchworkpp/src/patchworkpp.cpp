@@ -27,7 +27,8 @@ PatchWorkPP::PatchWorkPP(const rclcpp::NodeOptions & options)
   rnr_params_(this),
   czm_params_(this),
   rpf_params_(this),
-  gle_params_(this)
+  gle_params_(this),
+  tgr_params_(this)
 {
   max_queue_size_ = declare_parameter<int64_t>("max_queue_size", 5);
   debug_ = declare_parameter<bool>("debug", false);
@@ -114,8 +115,8 @@ void PatchWorkPP::cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr c
         // v_eigenvalues_ = (e3, e2, e1) ... (e3 <= e2 <= e1)
         // v_normal_ = (vx, vy, vz) ... corresponding to e3
         // centroid_ = (cx, cy, cz)
-        const double uprightness = v_normal_(2, 0);
-        const double elevation = centroid_(2, 0);
+        const double uprightness = v_normal_(2);
+        const double elevation = centroid_(2);
         const double flatness = v_eigenvalues_.minCoeff();
 
         const bool is_near_ring = concentric_idx < czm_params_.num_near_ring();
@@ -239,7 +240,7 @@ void PatchWorkPP::estimate_vertical_plane(
     sample_initial_seed(zone_idx, non_vertical_cloud, ground_cloud, rpf_params_.vpf_seed_margin());
     estimate_plane(ground_cloud);
 
-    if (zone_idx != 0 || gle_params_.uprightness_threshold() <= v_normal_(2, 0)) {
+    if (zone_idx != 0 || gle_params_.uprightness_threshold() <= v_normal_(2)) {
       break;
     }
 
@@ -304,7 +305,7 @@ void PatchWorkPP::estimate_plane(const pcl::PointCloud<PointT> & ground_cloud)
   v_normal_ = solver.eigenvectors().col(0).normalized();
   v_eigenvalues_ = solver.eigenvalues();
 
-  if (v_normal_(2, 0) < 0.0) {
+  if (v_normal_(2) < 0.0) {
     for (auto & v : v_normal_) {
       v *= -1;
     }
@@ -323,7 +324,7 @@ void PatchWorkPP::temporal_ground_revert(
     const auto & [mean_flatness, std_flatness] = calculate_mean_stddev(ring_flatness);
 
     const double ring_flatness_t =
-      mean_flatness + gle_params_.flatness_std_weights(candidate.zone_idx) * std_flatness;  // eq(8)
+      mean_flatness + tgr_params_.flatness_std_weights(candidate.zone_idx) * std_flatness;  // eq(8)
 
     if (candidate.flatness < ring_flatness_t) {
       insert_cloud(candidate.ground_cloud, *ground_cloud_);
@@ -391,7 +392,7 @@ void PatchWorkPP::cloud_to_czm(
     const auto & point = in_cloud.points.at(pt_idx);
     const double radius = calculate_radius(point);
 
-    if (radius < czm_params_.min_range() || czm_params_.max_range() < radius) {
+    if (radius < czm_params_.min_range() || czm_params_.max_range() <= radius) {
       continue;
     }
 

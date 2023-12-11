@@ -134,4 +134,8 @@ GLEParams::GLEParams(rclcpp::Node * node)
   }
 }
 
+TGRParams::TGRParams(rclcpp::Node * node)
+{
+  flatness_std_weights_ = node->declare_parameter<std::vector<double>>("tgr.flatness_std_weights");
+}
 }  // namespace patchwork_pp

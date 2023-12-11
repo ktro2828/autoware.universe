@@ -71,6 +71,7 @@ private:
   CZMParams czm_params_;
   RPFParams rpf_params_;
   GLEParams gle_params_;
+  TGRParams tgr_params_;
 
   size_t max_queue_size_;
   bool debug_;
