@@ -165,8 +165,10 @@ std::queue<size_t> PatchWorkPP::remove_reflected_noise(
   std::queue<size_t> noise_indices;
   for (size_t i = 0; i < in_cloud.points.size(); ++i) {
     const auto & point = in_cloud.points.at(i);
-    const double radius = calculate_radius(point);                           // [m]
-    const double incident_angle = std::atan2(point.z, radius) * 180 / M_PI;  // [deg]
+    const double radius = calculate_radius(point);  // [m]
+    const double incident_angle =
+      std::atan2(point.z - common_params_.sensor_height(), radius) * 180 / M_PI;  // [deg]
+
     if (
       point.z < rnr_params_.min_height_threshold() &&
       incident_angle < rnr_params_.min_vertical_angle_threshold() &&
