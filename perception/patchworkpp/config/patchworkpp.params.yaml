@@ -13,8 +13,8 @@
       num_zone: 4
       num_near_ring: 4
       min_num_point: 10 # Minimum number of points that should be contained in each zone.
-      num_sectors: [16, 24, 24, 24] # Number of sectors for each zone.
-      num_rings: [6, 8, 4, 4] # Number of rings of each zone.
+      num_sectors: [24, 32, 32, 32] # Number of sectors for each zone.
+      num_rings: [12, 10, 8, 8] # Number of rings of each zone.
       elevation_thresholds: [1.5, 1.5, 1.5, 1.5] # Initial threshold values for elevation.
       flatness_thresholds: [0.0, 0.0, 0.0, 0.0] # Initial threshold values for flatness.
     rpf: # Region-wise Plane Fitting (R-VPF & R-GPF)
