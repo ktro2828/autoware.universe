@@ -35,7 +35,7 @@ public:
 
   double sensor_height() const { return sensor_height_; }
 
-  double lowest_z_in_close_zone() const { return sensor_height_ * seed_selection_weight_; }
+  double lowest_z_in_close_zone() const { return sensor_height_ * seed_selection_weight_ + sensor_height_; }
 };
 
 class RNRParams
