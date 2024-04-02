@@ -104,6 +104,7 @@ MotionVelocitySmootherNode::MotionVelocitySmootherNode(const rclcpp::NodeOptions
   clock_ = get_clock();
 
   logger_configure_ = std::make_unique<tier4_autoware_utils::LoggerLevelConfigure>(this);
+  published_time_publisher_ = std::make_unique<tier4_autoware_utils::PublishedTimePublisher>(this);
 }
 
 void MotionVelocitySmootherNode::setupSmoother(const double wheelbase)
@@ -173,7 +174,7 @@ rcl_interfaces::msg::SetParametersResult MotionVelocitySmootherNode::onParameter
     update_param_bool("enable_lateral_acc_limit", p.enable_lateral_acc_limit);
     update_param_bool("enable_steering_rate_limit", p.enable_steering_rate_limit);
 
-    update_param("max_velocity", p.max_velocity);
+    update_param("max_vel", p.max_velocity);
     update_param(
       "margin_to_insert_external_velocity_limit", p.margin_to_insert_external_velocity_limit);
     update_param("replan_vel_deviation", p.replan_vel_deviation);
@@ -277,7 +278,7 @@ void MotionVelocitySmootherNode::initCommonParam()
   p.enable_lateral_acc_limit = declare_parameter<bool>("enable_lateral_acc_limit");
   p.enable_steering_rate_limit = declare_parameter<bool>("enable_steering_rate_limit");
 
-  p.max_velocity = declare_parameter<double>("max_velocity");  // 72.0 kmph
+  p.max_velocity = declare_parameter<double>("max_vel");
   p.margin_to_insert_external_velocity_limit =
     declare_parameter<double>("margin_to_insert_external_velocity_limit");
   p.replan_vel_deviation = declare_parameter<double>("replan_vel_deviation");
@@ -314,6 +315,8 @@ void MotionVelocitySmootherNode::publishTrajectory(const TrajectoryPoints & traj
   Trajectory publishing_trajectory = motion_utils::convertToTrajectory(trajectory);
   publishing_trajectory.header = base_traj_raw_ptr_->header;
   pub_trajectory_->publish(publishing_trajectory);
+  published_time_publisher_->publish_if_subscribed(
+    pub_trajectory_, publishing_trajectory.header.stamp);
 }
 
 void MotionVelocitySmootherNode::onCurrentOdometry(const Odometry::ConstSharedPtr msg)
@@ -452,6 +455,9 @@ void MotionVelocitySmootherNode::onCurrentTrajectory(const Trajectory::ConstShar
     RCLCPP_ERROR(get_logger(), "No enough points in trajectory after overlap points removal");
     return;
   }
+
+  // Set 0 at the end of the trajectory
+  input_points.back().longitudinal_velocity_mps = 0.0;
 
   // calculate prev closest point
   if (!prev_output_.empty()) {

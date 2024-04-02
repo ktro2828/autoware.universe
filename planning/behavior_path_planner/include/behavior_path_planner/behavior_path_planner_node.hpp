@@ -21,6 +21,8 @@
 #include "behavior_path_planner_common/interface/steering_factor_interface.hpp"
 #include "tier4_autoware_utils/ros/logger_level_configure.hpp"
 
+#include <tier4_autoware_utils/ros/published_time_publisher.hpp>
+
 #include <autoware_adapi_v1_msgs/msg/operation_mode_state.hpp>
 #include <autoware_auto_mapping_msgs/msg/had_map_bin.hpp>
 #include <autoware_auto_perception_msgs/msg/predicted_objects.hpp>
@@ -166,7 +168,6 @@ private:
     const BehaviorModuleOutput & output);
 
   // debug
-  rclcpp::Publisher<MarkerArray>::SharedPtr debug_maximum_drivable_area_publisher_;
   rclcpp::Publisher<AvoidanceDebugMsgArray>::SharedPtr debug_avoidance_msg_array_publisher_;
   rclcpp::Publisher<MarkerArray>::SharedPtr debug_turn_signal_info_publisher_;
 
@@ -216,6 +217,8 @@ private:
     const std::shared_ptr<PlannerData> & planner_data);
 
   std::unique_ptr<tier4_autoware_utils::LoggerLevelConfigure> logger_configure_;
+
+  std::unique_ptr<tier4_autoware_utils::PublishedTimePublisher> published_time_publisher_;
 };
 }  // namespace behavior_path_planner
 

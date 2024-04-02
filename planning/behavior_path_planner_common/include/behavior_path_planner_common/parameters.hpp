@@ -42,6 +42,7 @@ struct BehaviorPathPlannerParameters
   // common parameters
   double min_acc;
   double max_acc;
+  double max_vel;
 
   double minimum_pull_over_length;
   double minimum_pull_out_length;
@@ -76,9 +77,6 @@ struct BehaviorPathPlannerParameters
   double right_over_hang;
   double base_link2front;
   double base_link2rear;
-
-  // maximum drivable area visualization
-  bool visualize_maximum_drivable_area;
 };
 
 #endif  // BEHAVIOR_PATH_PLANNER_COMMON__PARAMETERS_HPP_

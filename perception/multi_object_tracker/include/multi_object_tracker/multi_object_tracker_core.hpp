@@ -20,11 +20,10 @@
 #define MULTI_OBJECT_TRACKER__MULTI_OBJECT_TRACKER_CORE_HPP_
 
 #include "multi_object_tracker/data_association/data_association.hpp"
+#include "multi_object_tracker/debugger.hpp"
 #include "multi_object_tracker/tracker/model/tracker_base.hpp"
 
 #include <rclcpp/rclcpp.hpp>
-#include <tier4_autoware_utils/ros/debug_publisher.hpp>
-#include <tier4_autoware_utils/system/stop_watch.hpp>
 
 #include <autoware_auto_perception_msgs/msg/detected_objects.hpp>
 #include <autoware_auto_perception_msgs/msg/tracked_objects.hpp>
@@ -40,9 +39,6 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #endif
 
-#include <diagnostic_updater/diagnostic_updater.hpp>
-#include <diagnostic_updater/publisher.hpp>
-
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 
@@ -51,41 +47,6 @@
 #include <memory>
 #include <string>
 #include <vector>
-
-/**
- * @brief Debugger class for multi object tracker
- * @details This class is used to publish debug information of multi object tracker
- */
-class TrackerDebugger
-{
-public:
-  explicit TrackerDebugger(rclcpp::Node & node);
-  void publishProcessingTime();
-  void publishTentativeObjects(
-    const autoware_auto_perception_msgs::msg::TrackedObjects & tentative_objects) const;
-  void startStopWatch();
-  void startMeasurementTime(const rclcpp::Time & measurement_header_stamp);
-  void setupDiagnostics();
-  void checkDelay(diagnostic_updater::DiagnosticStatusWrapper & stat);
-  struct DEBUG_SETTINGS
-  {
-    bool publish_processing_time;
-    bool publish_tentative_objects;
-    double diagnostics_warn_delay;
-    double diagnostics_error_delay;
-  } debug_settings_;
-  double elapsed_time_from_sensor_input_ = 0.0;
-  diagnostic_updater::Updater diagnostic_updater_;
-
-private:
-  void loadParameters();
-  rclcpp::Node & node_;
-  rclcpp::Publisher<autoware_auto_perception_msgs::msg::TrackedObjects>::SharedPtr
-    debug_tentative_objects_pub_;
-  std::unique_ptr<tier4_autoware_utils::StopWatch<std::chrono::milliseconds>> stop_watch_ptr_;
-  std::unique_ptr<tier4_autoware_utils::DebugPublisher> processing_time_publisher_;
-  rclcpp::Time last_input_stamp_;
-};
 
 class MultiObjectTracker : public rclcpp::Node
 {
@@ -107,6 +68,8 @@ private:
 
   std::map<std::uint8_t, std::string> tracker_map_;
 
+  std::unique_ptr<tier4_autoware_utils::PublishedTimePublisher> published_time_publisher_;
+
   void onMeasurement(
     const autoware_auto_perception_msgs::msg::DetectedObjects::ConstSharedPtr input_objects_msg);
   void onTimer();
@@ -124,7 +87,7 @@ private:
     const autoware_auto_perception_msgs::msg::DetectedObject & object, const rclcpp::Time & time,
     const geometry_msgs::msg::Transform & self_transform) const;
 
-  void publish(const rclcpp::Time & time);
+  void publish(const rclcpp::Time & time) const;
   inline bool shouldTrackerPublish(const std::shared_ptr<const Tracker> tracker) const;
 };
 

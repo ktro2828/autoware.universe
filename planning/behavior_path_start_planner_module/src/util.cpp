@@ -14,7 +14,6 @@
 
 #include "behavior_path_start_planner_module/util.hpp"
 
-#include "behavior_path_planner_common/utils/create_vehicle_footprint.hpp"
 #include "behavior_path_planner_common/utils/path_shifter/path_shifter.hpp"
 #include "behavior_path_planner_common/utils/path_utils.hpp"
 #include "behavior_path_planner_common/utils/utils.hpp"
@@ -92,7 +91,6 @@ lanelet::ConstLanelets getPullOutLanes(
   const auto start_pose = planner_data->route_handler->getOriginalStartPose();
 
   lanelet::ConstLanelet current_shoulder_lane;
-  lanelet::ConstLanelets shoulder_lanes;
   if (route_handler->getPullOutStartLane(
         route_handler->getShoulderLanelets(), start_pose, vehicle_width, &current_shoulder_lane)) {
     // pull out from shoulder lane
@@ -104,6 +102,42 @@ lanelet::ConstLanelets getPullOutLanes(
     planner_data, backward_length,
     /*forward_length*/ std::numeric_limits<double>::max(),
     /*forward_only_in_route*/ true);
+}
+
+std::optional<PathWithLaneId> extractCollisionCheckSection(
+  const PullOutPath & path, const double collision_check_distance_from_end)
+{
+  PathWithLaneId full_path;
+  for (const auto & partial_path : path.partial_paths) {
+    full_path.points.insert(
+      full_path.points.end(), partial_path.points.begin(), partial_path.points.end());
+  }
+
+  if (full_path.points.empty()) return std::nullopt;
+  // Find the start index for collision check section based on the shift start pose
+  const auto shift_start_idx =
+    motion_utils::findNearestIndex(full_path.points, path.start_pose.position);
+
+  // Find the end index for collision check section based on the end pose and collision check
+  // distance
+  const auto collision_check_end_idx = [&]() -> size_t {
+    const auto end_pose_offset = motion_utils::calcLongitudinalOffsetPose(
+      full_path.points, path.end_pose.position, collision_check_distance_from_end);
+
+    return end_pose_offset
+             ? motion_utils::findNearestIndex(full_path.points, end_pose_offset->position)
+             : full_path.points.size() - 1;  // Use the last point if offset pose is not calculable
+  }();
+
+  // Extract the collision check section from the full path
+  PathWithLaneId collision_check_section;
+  if (shift_start_idx < collision_check_end_idx) {
+    collision_check_section.points.assign(
+      full_path.points.begin() + shift_start_idx,
+      full_path.points.begin() + collision_check_end_idx + 1);
+  }
+
+  return collision_check_section;
 }
 
 }  // namespace behavior_path_planner::start_planner_utils
