@@ -318,11 +318,11 @@ public:
       rclcpp::SubscriptionOptions sub_opts;
       sub_opts.event_callbacks.message_lost_callback = [&](rclcpp::QOSMessageLostInfo & info) {
         std::ostringstream sstream;
-        sstm << "Some messages were lost:\n>\tNumber of new lost messages: "
-             << info.total_count_change
-             << " \n>\tTotal number of messages lost: " << info.total_count;
+        sstream << "Some messages were lost:\n>\tNumber of new lost messages: "
+                << info.total_count_change
+                << " \n>\tTotal number of messages lost: " << info.total_count;
         RosTopicDisplay::setStatus(
-          rviz_common::properties::StatusProperty::Warn, "Topic", QString(sstm.str().c_str()));
+          rviz_common::properties::StatusProperty::Warn, "Topic", QString(sstream.str().c_str()));
       };
 
       rclcpp::Node::SharedPtr raw_node =
