@@ -1,0 +1,5 @@
+/**:
+  ros__parameters:
+    num_timestamp: 48
+    timestamp_threshold: 150 # [ms]
+    model_path: "$(var data_path)/simpl.onnx"
