@@ -4,6 +4,7 @@ import logging
 from autoware_map_msgs.msg import LaneletMapBin
 from autoware_perception_msgs.msg import PredictedObjects
 from autoware_perception_msgs.msg import TrackedObjects
+from autoware_simpl_python.conversion import convert_lanelet
 from autoware_simpl_python.conversion import convert_odometry
 from autoware_simpl_python.conversion import from_tracked_objects
 from autoware_simpl_python.conversion import timestamp2ms
@@ -21,7 +22,8 @@ from numpy.typing import NDArray
 from onnxruntime import InferenceSession
 import rclpy
 from rclpy.node import Node
-
+import io
+import pickle
 
 @dataclass
 class ModelInput:
@@ -75,8 +77,10 @@ class SimplNode(Node):
             rclpy.shutdown()
 
     def _on_map(self, msg: LaneletMapBin) -> None:
-        # TODO(ktro2828): implement to convert lanelet map
-        pass
+        data_stream = io.BytesIO(msg.data)
+
+        lanelet_map = pickle.load(data_stream)
+        self._lane_segments = convert_lanelet(lanelet_map)
 
     def _on_ego(self, msg: Odometry) -> None:
         # TODO(ktro2828): update values

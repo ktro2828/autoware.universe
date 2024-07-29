@@ -6,6 +6,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .polyline import Polyline
+from autoware_simpl_python.datatype import LaneType, BoundaryType
 
 __all__ = ("LaneSegment", "BoundarySegment")
 

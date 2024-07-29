@@ -7,6 +7,8 @@ from typing import Final
 import numpy as np
 from numpy.typing import NDArray
 
+from autoware_simpl_python.datatype import PolylineType
+
 __all__ = ("Polyline",)
 
 
