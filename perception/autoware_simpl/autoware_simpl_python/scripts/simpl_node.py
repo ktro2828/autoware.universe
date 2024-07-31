@@ -1,7 +1,9 @@
 from dataclasses import dataclass
-import logging
+import io
+import pickle
 
 from autoware_map_msgs.msg import LaneletMapBin
+from autoware_perception_msgs.msg import ObjectClassification
 from autoware_perception_msgs.msg import PredictedObjects
 from autoware_perception_msgs.msg import TrackedObjects
 from autoware_simpl_python.conversion import convert_lanelet
@@ -20,10 +22,12 @@ from nav_msgs.msg import Odometry
 import numpy as np
 from numpy.typing import NDArray
 from onnxruntime import InferenceSession
+from rcl_interfaces.msg import ParameterDescriptor
 import rclpy
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
-import io
-import pickle
+import rclpy.parameter
+
 
 @dataclass
 class ModelInput:
@@ -57,10 +61,27 @@ class SimplNode(Node):
         self._object_pub = self.create_publisher(PredictedObjects, "~/output/objects", 10)
 
         # ROS parameters
-        num_timestamp: int = self.declare_parameter("num_timestamp")
-        self._timestamp_threshold: float = self.declare_parameter("timestamp_threshold")
-        model_path: str = self.declare_parameter("model_path")
-        build_only: bool = self.declare_parameter("build_only")
+        descriptor = ParameterDescriptor(dynamic_typing=True)
+        num_timestamp = (
+            self.declare_parameter("num_timestamp", descriptor=descriptor)
+            .get_parameter_value()
+            .integer_value
+        )
+        self._timestamp_threshold = (
+            self.declare_parameter("timestamp_threshold", descriptor=descriptor)
+            .get_parameter_value()
+            .double_value
+        )
+        model_path = (
+            self.declare_parameter("model_path", descriptor=descriptor)
+            .get_parameter_value()
+            .string_value
+        )
+        build_only = (
+            self.declare_parameter("build_only", descriptor=descriptor)
+            .get_parameter_value()
+            .bool_value
+        )
 
         # input attributes
         self._lane_segments: list[LaneSegment] | None = None
@@ -68,13 +89,16 @@ class SimplNode(Node):
         self._history = AgentHistory(max_length=num_timestamp)
 
         # onnx inference
-        self._session = InferenceSession(model_path, providers=["CUDAExecutionProvider"])
+        self._session = InferenceSession(
+            model_path, providers=["CUDAExecutionProvider", "CPUExecutionProvider"]
+        )
         self._input_names = [i.name for i in self._session.get_inputs()]
         self._output_names = [o.name for o in self._session.get_outputs()]
 
         if build_only:
-            logging.info("Onnx runtime session is built and exit.")
-            rclpy.shutdown()
+            self.get_logger().info("Onnx runtime session is built and exit.")
+            self.destroy_node()
+            rclpy.try_shutdown()
 
     def _on_map(self, msg: LaneletMapBin) -> None:
         data_stream = io.BytesIO(msg.data)
@@ -85,7 +109,7 @@ class SimplNode(Node):
     def _on_ego(self, msg: Odometry) -> None:
         # TODO(ktro2828): update values
         uuid = "Ego"
-        label_id = -1
+        label_id = ObjectClassification.CAR
         size = np.array((0, 0, 0))
 
         self._current_ego = convert_odometry(
@@ -97,10 +121,10 @@ class SimplNode(Node):
 
     def _callback(self, msg: TrackedObjects) -> None:
         if self._lane_segments is None:
-            logging.warning("Lanelet map is not subscribed yet...")
+            self.get_logger().warning("Lanelet map is not subscribed yet...")
             return
         elif self._current_ego is None:
-            logging.warning("Ego odometry is not subscribed yet...")
+            self.get_logger().warning("Ego odometry is not subscribed yet...")
             return
 
         # remove ancient agent history
@@ -178,10 +202,14 @@ def main(args=None) -> None:
     rclpy.init(args=args)
 
     node = SimplNode()
-    rclpy.spin(node)
-
-    node.destroy_node()
-    rclpy.shutdown()
+    executor = MultiThreadedExecutor()
+    try:
+        rclpy.spin(node, executor)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()
 
 
 if __name__ == "__main__":
