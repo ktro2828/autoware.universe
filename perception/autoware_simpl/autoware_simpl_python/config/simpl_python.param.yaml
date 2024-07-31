@@ -2,4 +2,5 @@
   ros__parameters:
     num_timestamp: 48
     timestamp_threshold: 150 # [ms]
+    labels: ["VEHICLE", "PEDESTRIAN", "CYCLIST"]
     model_path: "$(var data_path)/simpl.onnx"

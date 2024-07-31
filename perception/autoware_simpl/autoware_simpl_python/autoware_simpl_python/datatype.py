@@ -12,7 +12,15 @@ else:
     from typing import Self
 
 
-__all__ = ("PolylineType", "LaneType", "BoundaryType", "T4Lane", "T4RoadLine", "T4RoadEdge")
+__all__ = (
+    "T4Agent",
+    "PolylineType",
+    "LaneType",
+    "BoundaryType",
+    "T4Lane",
+    "T4RoadLine",
+    "T4RoadEdge",
+)
 
 
 class ABCEnumMeta(EnumMeta, ABCMeta):
@@ -56,6 +64,32 @@ class _TypeBase(IntEnum, metaclass=ABCEnumMeta):
 
         """
         return name.upper() in cls.__members__
+
+
+class T4Agent(_TypeBase):
+    """Agent types in T4."""
+
+    # Dynamic movers
+    VEHICLE = 0
+    PEDESTRIAN = 1
+    CYCLIST = 2
+
+    # Static objects
+    STATIC = 3
+
+    # Catch-all type for other/unknown objects
+    UNKNOWN = 4
+
+    def is_dynamic(self) -> bool:
+        """
+        Whether the object is dynamic movers.
+
+        Returns
+        -------
+            bool: True if any of (VEHICLE, PEDESTRIAN, MOTORCYCLIST, CYCLIST, BUS).
+
+        """
+        return self in (T4Agent.VEHICLE, T4Agent.PEDESTRIAN, T4Agent.CYCLIST)
 
 
 class PolylineType(_TypeBase, metaclass=ABCEnumMeta):
