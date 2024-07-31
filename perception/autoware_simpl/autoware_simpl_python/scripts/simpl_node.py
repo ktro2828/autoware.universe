@@ -11,6 +11,7 @@ from autoware_simpl_python.conversion import to_predicted_objects
 from autoware_simpl_python.dataclass import AgentHistory
 from autoware_simpl_python.dataclass import AgentState
 from autoware_simpl_python.dataclass import LaneSegment
+from autoware_simpl_python.datatype import T4Agent
 from autoware_simpl_python.geometry import rotate_along_z
 from autoware_simpl_python.preprocess import embed_agent
 from autoware_simpl_python.preprocess import embed_lane
@@ -68,6 +69,11 @@ class SimplNode(Node):
             .get_parameter_value()
             .string_value
         )
+        labels = (
+            self.declare_parameter("labels", descriptor=descriptor)
+            .get_parameter_value()
+            .string_array_value
+        )
         model_path = (
             self.declare_parameter("model_path", descriptor=descriptor)
             .get_parameter_value()
@@ -83,6 +89,8 @@ class SimplNode(Node):
         self._lane_segments: list[LaneSegment] = convert_lanelet(lanelet_file)
         self._current_ego: AgentState | None = None
         self._history = AgentHistory(max_length=num_timestamp)
+
+        self._label_ids = [T4Agent.from_str(label).value for label in labels]
 
         # onnx inference
         self._session = InferenceSession(
@@ -147,6 +155,7 @@ class SimplNode(Node):
         agent, agent_ctr, agent_vec = embed_agent(
             self._history.as_trajectory(),
             self._current_ego,
+            self._label_ids,
         )
         lane, lane_ctr, lane_vec = embed_lane(self._lane_segments, self._current_ego)
 

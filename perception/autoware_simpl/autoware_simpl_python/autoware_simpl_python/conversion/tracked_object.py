@@ -10,6 +10,7 @@ from autoware_perception_msgs.msg import TrackedObject
 from autoware_perception_msgs.msg import TrackedObjectKinematics
 from autoware_perception_msgs.msg import TrackedObjects
 from autoware_simpl_python.dataclass import AgentState
+from autoware_simpl_python.datatype import T4Agent
 import numpy as np
 from unique_identifier_msgs.msg import UUID as RosUUID
 
@@ -44,10 +45,10 @@ def from_tracked_objects(
     """Convert TrackedObjects msg to AgentTrajectory instance.
 
     Args:
-        msg (TrackedObjects):
+        msg (TrackedObjects): Tracked objects.
 
     Returns:
-        tuple[list[AgentState], list[ObjectInfo]]:
+        tuple[list[AgentState], list[ObjectInfo]]: List of converted states and original information.
     """
     states: list[AgentState] = []
     infos: list[ObjectInfo] = []
@@ -56,7 +57,7 @@ def from_tracked_objects(
         obj: TrackedObject
 
         classification = _max_probability_classification(obj.classification)
-        label_id = classification.label
+        label_id = _convert_label(classification.label)
 
         pose = obj.kinematics.pose_with_covariance.pose
         xyz = np.array((pose.position.x, pose.position.y, pose.position.z))
@@ -105,3 +106,29 @@ def _max_probability_classification(
         ObjectClassification: Max probability classification.
     """
     return max(classifications, key=lambda c: c.probability)
+
+
+def _convert_label(label: int) -> int:
+    """Convert the label of ObjectClassification to T4Agent.
+
+    Args:
+        label (int): Label id.
+
+    Returns:
+        int: T4Agent value.
+    """
+    if label in (
+        ObjectClassification.CAR,
+        ObjectClassification.BUS,
+        ObjectClassification.TRAILER,
+        ObjectClassification.TRUCK,
+    ):
+        return T4Agent.VEHICLE.value
+    elif label in (ObjectClassification.BICYCLE, ObjectClassification.MOTORCYCLE):
+        return T4Agent.CYCLIST.value
+    elif label == ObjectClassification.PEDESTRIAN:
+        return T4Agent.PEDESTRIAN
+    elif label == ObjectClassification.UNKNOWN:
+        return T4Agent.UNKNOWN.value
+    else:
+        return T4Agent.STATIC.value
