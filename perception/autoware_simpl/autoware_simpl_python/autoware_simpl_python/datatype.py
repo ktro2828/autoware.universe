@@ -1,5 +1,7 @@
-from enum import IntEnum, EnumMeta
-from abc import ABCMeta, abstractmethod
+from abc import ABCMeta
+from abc import abstractmethod
+from enum import EnumMeta
+from enum import IntEnum
 import sys
 
 if sys.version_info < (3, 11):
@@ -18,7 +20,6 @@ class ABCEnumMeta(EnumMeta, ABCMeta):
 
 
 class _TypeBase(IntEnum, metaclass=ABCEnumMeta):
-    UNKNOWN = -1
 
     @classmethod
     def from_str(cls, name: str) -> Self:
