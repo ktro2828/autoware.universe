@@ -179,6 +179,9 @@ class T4Lane(LaneType):
     PEDESTRIAN_LANE = 4
     WALKWAY = 5
 
+    # catch otherwise
+    UNKNOWN = -1
+
     def is_drivable(self) -> bool:
         """
         Indicate whether the lane is drivable.
@@ -198,6 +201,9 @@ class T4RoadLine(BoundaryType):
     SOLID = 1
     DASHED_DASHED = 2
     VIRTUAL = 3
+
+    # catch otherwise
+    UNKNOWN = -1
 
     def is_crossable(self) -> bool:
         """
@@ -226,6 +232,9 @@ class T4RoadEdge(BoundaryType):
     """Road edge types in T4."""
 
     ROAD_BORDER = 0
+
+    # catch otherwise
+    UNKNOWN = -1
 
     def is_crossable(self) -> bool:
         """

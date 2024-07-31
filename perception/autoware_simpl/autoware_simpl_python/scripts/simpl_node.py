@@ -1,8 +1,5 @@
 from dataclasses import dataclass
-import io
-import pickle
 
-from autoware_map_msgs.msg import LaneletMapBin
 from autoware_perception_msgs.msg import ObjectClassification
 from autoware_perception_msgs.msg import PredictedObjects
 from autoware_perception_msgs.msg import TrackedObjects
@@ -49,12 +46,6 @@ class SimplNode(Node):
             self._callback,
             10,
         )
-        self._map_sub = self.create_subscription(
-            LaneletMapBin,
-            "~/input/vector_map",
-            self._on_map,
-            10,
-        )
         self._ego_sub = self.create_subscription(Odometry, "~/input/ego", self._on_ego, 10)
 
         # publisher
@@ -72,6 +63,11 @@ class SimplNode(Node):
             .get_parameter_value()
             .double_value
         )
+        lanelet_file = (
+            self.declare_parameter("lanelet_file", descriptor=descriptor)
+            .get_parameter_value()
+            .string_value
+        )
         model_path = (
             self.declare_parameter("model_path", descriptor=descriptor)
             .get_parameter_value()
@@ -84,7 +80,7 @@ class SimplNode(Node):
         )
 
         # input attributes
-        self._lane_segments: list[LaneSegment] | None = None
+        self._lane_segments: list[LaneSegment] = convert_lanelet(lanelet_file)
         self._current_ego: AgentState | None = None
         self._history = AgentHistory(max_length=num_timestamp)
 
@@ -100,12 +96,6 @@ class SimplNode(Node):
             self.destroy_node()
             rclpy.try_shutdown()
 
-    def _on_map(self, msg: LaneletMapBin) -> None:
-        data_stream = io.BytesIO(msg.data)
-
-        lanelet_map = pickle.load(data_stream)
-        self._lane_segments = convert_lanelet(lanelet_map)
-
     def _on_ego(self, msg: Odometry) -> None:
         # TODO(ktro2828): update values
         uuid = "Ego"
@@ -120,10 +110,7 @@ class SimplNode(Node):
         )
 
     def _callback(self, msg: TrackedObjects) -> None:
-        if self._lane_segments is None:
-            self.get_logger().warning("Lanelet map is not subscribed yet...")
-            return
-        elif self._current_ego is None:
+        if self._current_ego is None:
             self.get_logger().warning("Ego odometry is not subscribed yet...")
             return
 

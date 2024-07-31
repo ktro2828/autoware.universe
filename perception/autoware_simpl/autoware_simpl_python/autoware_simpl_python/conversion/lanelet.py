@@ -1,15 +1,32 @@
-from autoware_simpl_python.dataclass import LaneSegment, Polyline, BoundarySegment
-from autoware_simpl_python.datatype import T4Lane, T4Polyline, T4RoadEdge, T4RoadLine, BoundaryType
+from autoware_lanelet2_extension_python.projection import MGRSProjector
+from autoware_simpl_python.dataclass import BoundarySegment
+from autoware_simpl_python.dataclass import LaneSegment
+from autoware_simpl_python.dataclass import Polyline
+from autoware_simpl_python.datatype import BoundaryType
+from autoware_simpl_python.datatype import T4Lane
+from autoware_simpl_python.datatype import T4Polyline
+from autoware_simpl_python.datatype import T4RoadEdge
+from autoware_simpl_python.datatype import T4RoadLine
 import lanelet2
 from lanelet2.routing import RoutingGraph
-from lanelet2.traffic_rules import Locations, Participants
+from lanelet2.traffic_rules import Locations
+from lanelet2.traffic_rules import Participants
 from lanelet2.traffic_rules import create as create_traffic_rules
 import numpy as np
 
-__all__ = ("convert_lanelet", )
+__all__ = ("convert_lanelet",)
 
 
-def convert_lanelet(lanelet_map: lanelet2.core.LaneletMap) -> list[LaneSegment]:
+def convert_lanelet(filename: str) -> list[LaneSegment]:
+    """Convert lanelet to list of lane segments.
+
+    Args:
+        filename (str): Path to osm file.
+
+    Returns:
+        list[LaneSegment]: List of converted lane segments.
+    """
+    lanelet_map = _load_osm(filename)
     traffic_rules = create_traffic_rules(Locations.Germany, Participants.Vehicle)
     routing_graph = RoutingGraph(lanelet_map, traffic_rules)
 
@@ -27,7 +44,9 @@ def convert_lanelet(lanelet_map: lanelet2.core.LaneletMap) -> list[LaneSegment]:
         polyline_type = T4Polyline.from_str(lanelet_subtype)
         polyline = Polyline(polyline_type=polyline_type, waypoints=waypoints)
         is_intersection = _is_intersection(lanelet)
-        left_neighbor_ids, right_neighbor_ids = _get_left_and_right_neighbor_ids(lanelet, routing_graph)
+        left_neighbor_ids, right_neighbor_ids = _get_left_and_right_neighbor_ids(
+            lanelet, routing_graph
+        )
         speed_limit_mph = _get_speed_limit_mph(lanelet)
 
         # boundary segments
@@ -35,7 +54,33 @@ def convert_lanelet(lanelet_map: lanelet2.core.LaneletMap) -> list[LaneSegment]:
         left_boundary = _get_boundary_segment(left_linestring)
         right_boundary = _get_boundary_segment(right_linestring)
 
-        lane_segments.append(LaneSegment(lane_id=lanelet.id, lane_type=lane_type, polyline=polyline, is_intersection=is_intersection, left_boundaries=[left_boundary], right_boundaries=[right_boundary], left_neighbor_ids=left_neighbor_ids, right_neighbor_ids=right_neighbor_ids, speed_limit_mph=speed_limit_mph))
+        lane_segments.append(
+            LaneSegment(
+                lane_id=lanelet.id,
+                lane_type=lane_type,
+                polyline=polyline,
+                is_intersection=is_intersection,
+                left_boundaries=[left_boundary],
+                right_boundaries=[right_boundary],
+                left_neighbor_ids=left_neighbor_ids,
+                right_neighbor_ids=right_neighbor_ids,
+                speed_limit_mph=speed_limit_mph,
+            )
+        )
+    return lane_segments
+
+
+def _load_osm(filename: str) -> lanelet2.core.LaneletMap:
+    """Load lanelet map from osm file.
+
+    Args:
+        filename (str): Path to osm file.
+
+    Returns:
+        lanelet2.core.LaneletMap: Loaded lanelet map.
+    """
+    projection = MGRSProjector(lanelet2.io.Origin(0.0, 0.0))
+    return lanelet2.io.load(filename, projection)
 
 
 def _get_lanelet_subtype(lanelet: lanelet2.core.Lanelet) -> str:
@@ -65,7 +110,9 @@ def _is_intersection(lanelet: lanelet2.core.Lanelet) -> bool:
     return "turn_direction" in lanelet.attributes
 
 
-def _get_left_and_right_neighbor_ids(lanelet: lanelet2.core.Lanelet, routing_graph: RoutingGraph) -> tuple[list[int], list[int]]:
+def _get_left_and_right_neighbor_ids(
+    lanelet: lanelet2.core.Lanelet, routing_graph: RoutingGraph
+) -> tuple[list[int], list[int]]:
     """Return the pair of the list of left and right neighbor ids.
 
     Args:
@@ -103,7 +150,9 @@ def _get_speed_limit_mph(lanelet: lanelet2.core.Lanelet) -> float | None:
         return None
 
 
-def _get_left_and_right_linestring(lanelet: lanelet2.core.Lanelet) -> tuple[lanelet2.core.LineString3d, lanelet2.core.LineString3d]:
+def _get_left_and_right_linestring(
+    lanelet: lanelet2.core.Lanelet,
+) -> tuple[lanelet2.core.LineString3d, lanelet2.core.LineString3d]:
     """
     Return the left and right boundaries from lanelet.
 
@@ -134,7 +183,7 @@ def _get_boundary_segment(linestring: lanelet2.core.LineString3d) -> BoundarySeg
     """
     boundary_type = _get_boundary_type(linestring)
     waypoints = np.array([(line.x, line.y, line.z) for line in linestring])
-    polyline_type = T4Polyline.from_str(boundary_type.as_str())
+    polyline_type = T4Polyline.from_str(str(boundary_type))
     polyline = Polyline(polyline_type=polyline_type, waypoints=waypoints)
     return BoundarySegment(linestring.id, boundary_type, polyline)
 
