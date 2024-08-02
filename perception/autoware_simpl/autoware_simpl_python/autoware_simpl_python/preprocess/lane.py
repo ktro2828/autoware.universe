@@ -1,5 +1,6 @@
 from autoware_simpl_python.dataclass import AgentState
 from autoware_simpl_python.dataclass import LaneSegment
+from autoware_simpl_python.datatype import T4Lane
 from autoware_simpl_python.geometry import rotate_along_z
 import numpy as np
 from numpy.typing import NDArray
@@ -64,11 +65,11 @@ def embed_lane(
         current_ego=current_ego,
     )
 
-    # TODO(ktro2828): type onehot
     lane_label_id: NDArray = lane_polyline[..., -1]
+    num_type = len(T4Lane)
     type_onehot = np.zeros((num_polyline, num_point, num_type))
-    for i, label_id in enumerate(target_label_ids):
-        type_onehot[lane_label_id == label_id, i] = 1
+    for i, label in enumerate(T4Lane):
+        type_onehot[lane_label_id == label.value, i] = 1
 
     lane_embed = np.concatenate(
         (

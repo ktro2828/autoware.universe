@@ -1,4 +1,3 @@
-from autoware_lanelet2_extension_python.projection import MGRSProjector
 from autoware_simpl_python.dataclass import BoundarySegment
 from autoware_simpl_python.dataclass import LaneSegment
 from autoware_simpl_python.dataclass import Polyline
@@ -12,6 +11,7 @@ from lanelet2.routing import RoutingGraph
 from lanelet2.traffic_rules import Locations
 from lanelet2.traffic_rules import Participants
 from lanelet2.traffic_rules import create as create_traffic_rules
+from lanelet2_extension_python.projection import MGRSProjector
 import numpy as np
 
 __all__ = ("convert_lanelet",)
