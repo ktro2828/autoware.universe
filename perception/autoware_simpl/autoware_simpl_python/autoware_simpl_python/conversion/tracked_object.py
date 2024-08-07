@@ -17,7 +17,7 @@ from unique_identifier_msgs.msg import UUID as RosUUID
 from .misc import timestamp2ms
 from .misc import yaw_from_quaternion
 
-__all__ = ("ObjectInfo", "from_tracked_objects")
+__all__ = ("ObjectInfo", "from_tracked_objects", "sort_object_infos")
 
 
 @dataclass(frozen=True)
@@ -86,6 +86,20 @@ def from_tracked_objects(
         infos.append(ObjectInfo.from_msg(obj))
 
     return states, infos
+
+
+def sort_object_infos(infos: list[ObjectInfo], uuids: list[str]) -> list[ObjectInfo]:
+    """Sort the list of object infos by input uuids.
+
+    Args:
+        infos (list[ObjectInfo]): List of ObjectInfos.
+        uuids (list[str]): List of uuids.
+
+    Returns:
+        list[ObjectInfo]: Sorted ObjectInfos.
+    """
+    uuid2info = {_uuid_msg_to_str(info.uuid): info for info in infos}
+    return [uuid2info[uuid] for uuid in uuids if uuid in uuid2info]
 
 
 def _uuid_msg_to_str(uuid_msg: RosUUID) -> str:

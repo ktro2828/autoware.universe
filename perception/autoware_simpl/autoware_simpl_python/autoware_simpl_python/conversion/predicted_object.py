@@ -59,7 +59,7 @@ def _to_predicted_object(
 
     # convert each mode
     for cur_score, cur_traj in zip(pred_scores, pred_trajs, strict=True):
-        cur_mode_path = _to_predicted_path(cur_score, cur_traj)
+        cur_mode_path = _to_predicted_path(info, cur_score, cur_traj)
         output.kinematics.predicted_paths.append(cur_mode_path)
 
     return output
@@ -81,13 +81,13 @@ def _to_predicted_path(
         PredictedPath: Instanced msg.
     """
     output = PredictedPath()
-    output.time_step = Duration(seconds=0.1)  # TODO(ktro2828): use specific value?
-    output.confidence = pred_score
+    output.time_step = Duration(seconds=0.1).to_msg()  # TODO(ktro2828): use specific value?
+    output.confidence = float(pred_score)
     for x, y, _, _ in pred_traj:  # (x, y, vx, vy)
         pose = Pose()
 
-        pose.position.x = x
-        pose.position.y = y
+        pose.position.x = float(x)
+        pose.position.y = float(y)
         pose.position.z = info.kinematics.pose_with_covariance.pose.position.z
         pose.orientation = info.kinematics.pose_with_covariance.pose.orientation
 

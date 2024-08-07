@@ -2,6 +2,7 @@ import math
 
 import torch
 from torch import Tensor
+from torch import device
 from torch import nn
 import torch.nn.functional as F
 from typing_extensions import Self
@@ -149,6 +150,12 @@ class SimplDecoder(nn.Module):
             self.mat_T = self.mat_T.to(args, kwargs)
             self.mat_Tp = self.mat_Tp.to(args, kwargs)
         return super().to(args, kwargs)
+
+    def cuda(self, device: int | device | None = None) -> Self:
+        if self.pred_format:
+            self.mat_T = self.mat_T.cuda(device)
+            self.mat_Tp = self.mat_Tp.cuda(device)
+        return super().cuda(device)
 
     def forward(self, embed: Tensor) -> tuple[Tensor, Tensor]:
         """

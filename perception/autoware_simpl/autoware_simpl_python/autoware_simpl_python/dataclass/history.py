@@ -35,35 +35,41 @@ class AgentHistory:
                 )
             self.histories[uuid].append(state)
 
-    def remove_invalid(self, cur_timestamp: float, threshold: float) -> None:
+    def remove_invalid(self, current_timestamp: float, threshold: float) -> None:
         """Remove agent histories whose the latest state are invalid or ancient.
 
         Args:
-            cur_timestamp (float): Current timestamp.
-            threshold (float): Threshold value to filter out ancient history.
+            current_timestamp (float): Current timestamp in [ms].
+            threshold (float): Threshold value to filter out ancient history in [ms].
         """
+        remove_uuids = []
         for uuid, history in self.histories.items():
             latest = history[-1]
-            if (not latest.is_valid) or self.is_ancient(cur_timestamp, threshold):
-                del self.histories[uuid]
+            if (not latest.is_valid) or self.is_ancient(
+                latest.timestamp, current_timestamp, threshold
+            ):
+                remove_uuids.append(uuid)
+
+        for uuid in remove_uuids:
+            del self.histories[uuid]
 
     @staticmethod
-    def is_ancient(latest: AgentState, cur_timestamp: float, threshold: float) -> bool:
+    def is_ancient(latest_timestamp: float, current_timestamp: float, threshold: float) -> bool:
         """Check whether the latest state is ancient.
 
         Args:
-            latest (AgentState): Latest state.
-            cur_timestamp (float): Current timestamp in [ms].
+            latest_timestamp (float): Latest state timestamp in [ms].
+            current_timestamp (float): Current timestamp in [ms].
             threshold (float): Timestamp threshold in [ms].
 
         Returns:
             bool: Return True if timestamp difference is greater than threshold,
                 which means ancient.
         """
-        timestamp_diff = cur_timestamp - latest.timestamp
+        timestamp_diff = abs(current_timestamp - latest_timestamp)
         return timestamp_diff > threshold
 
-    def as_trajectory(self, *, latest: bool = False) -> AgentTrajectory:
+    def as_trajectory(self, *, latest: bool = False) -> tuple[AgentTrajectory, list[str]]:
         """Convert agent history to AgentTrajectory.
 
         Args:
@@ -71,7 +77,7 @@ class AgentHistory:
                 in the shape of (N, D). Defaults to False.
 
         Returns:
-            AgentTrajectory: Instanced AgentTrajectory.
+            tuple[AgentTrajectory, list[str]]: Instanced AgentTrajectory and the list of their uuids.
         """
         if latest:
             return self._get_latest_trajectory()
@@ -79,7 +85,9 @@ class AgentHistory:
         num_agent = len(self.histories)
         waypoints = np.zeros((num_agent, self.max_length, AgentTrajectory.num_dim))
         label_ids = np.zeros(num_agent, dtype=np.int64)
-        for n, (_, history) in enumerate(self.histories.items()):
+        uuids: list[str] = []
+        for n, (uuid, history) in enumerate(self.histories.items()):
+            uuids.append(uuid)
             for t, state in enumerate(history):
                 waypoints[n, t] = (
                     *state.xyz,
@@ -90,7 +98,7 @@ class AgentHistory:
                 )
                 label_ids[n] = state.label_id
 
-        return AgentTrajectory(waypoints, label_ids)
+        return AgentTrajectory(waypoints, label_ids), uuids
 
     def _get_latest_trajectory(self) -> AgentTrajectory:
         """Return the latest agent state trajectory.

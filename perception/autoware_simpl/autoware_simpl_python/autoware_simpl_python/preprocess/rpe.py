@@ -22,8 +22,8 @@ def relative_pose_encode(
     v_pos = centers[None, ...] - centers[:, None, ...]  # (N+K, N+K, 2)
 
     # RPE angeles
-    cos_a1 = _calculate_cos(vectors[..., None], vectors[:, None, ...])
-    sin_a1 = _calculate_sin(vectors[..., None], vectors[:, None, ...])
+    cos_a1 = _calculate_cos(vectors[None, ...], vectors[:, None, ...])
+    sin_a1 = _calculate_sin(vectors[None, ...], vectors[:, None, ...])
 
     cos_a2 = _calculate_cos(vectors[None, ...], v_pos)
     sin_a2 = _calculate_sin(vectors[None, ...], v_pos)
@@ -49,7 +49,7 @@ def relative_pose_encode(
         d_pos = d_pos * 2.0 / radius
         pos_rpe = d_pos[..., None]  # (N, N, 1)
 
-    rpe: NDArray = np.concatenate((ang_rpe, pos_rpe), axis=-1)  # (N+K, N+K, Dr)
+    rpe: NDArray = np.concatenate((ang_rpe, pos_rpe), axis=-1, dtype=np.float32)  # (N+K, N+K, Dr)
     return rpe, rpe_mask
 
 

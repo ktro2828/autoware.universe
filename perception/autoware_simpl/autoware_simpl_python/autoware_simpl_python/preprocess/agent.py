@@ -48,6 +48,7 @@ def embed_agent(
             agent.is_valid[..., None],
         ),
         axis=-1,
+        dtype=np.float32,
     )  # (N, T, C)
 
     embedding = embedding.transpose(0, 2, 1)  # (N, C, T)
