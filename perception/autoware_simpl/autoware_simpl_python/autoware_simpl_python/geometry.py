@@ -15,7 +15,7 @@ def rotate_along_z(points: NDArray, angle: Number | NDArray) -> NDArray:
         NDArray: Rotated points array.
     """
     if not isinstance(angle, np.ndarray):
-        angle = np.array(angle)
+        angle = np.array(angle).reshape(-1, 1)
 
     cos = np.cos(angle)
     sin = np.sin(angle)

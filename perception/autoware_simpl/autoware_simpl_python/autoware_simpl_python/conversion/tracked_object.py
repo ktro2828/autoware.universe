@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Sequence
 from uuid import UUID as PyUUID
 
 from autoware_perception_msgs.msg import ObjectClassification
-from autoware_perception_msgs.msg import Shape
 from autoware_perception_msgs.msg import TrackedObject
-from autoware_perception_msgs.msg import TrackedObjectKinematics
 from autoware_perception_msgs.msg import TrackedObjects
 from autoware_simpl_python.dataclass import AgentState
+from autoware_simpl_python.dataclass import OriginalInfo
 from autoware_simpl_python.datatype import T4Agent
 import numpy as np
 from unique_identifier_msgs.msg import UUID as RosUUID
@@ -17,41 +15,22 @@ from unique_identifier_msgs.msg import UUID as RosUUID
 from .misc import timestamp2ms
 from .misc import yaw_from_quaternion
 
-__all__ = ("ObjectInfo", "from_tracked_objects")
-
-
-@dataclass(frozen=True)
-class ObjectInfo:
-    uuid: RosUUID
-    classification: Sequence[ObjectClassification]
-    shape: Shape
-    existence_probability: float
-    kinematics: TrackedObjectKinematics
-
-    @classmethod
-    def from_msg(cls, msg: TrackedObject) -> ObjectInfo:
-        return cls(
-            uuid=msg.object_id,
-            classification=msg.classification,
-            shape=msg.shape,
-            existence_probability=msg.existence_probability,
-            kinematics=msg.kinematics,
-        )
+__all__ = ("from_tracked_objects", "sort_object_infos")
 
 
 def from_tracked_objects(
     msg: TrackedObjects,
-) -> tuple[list[AgentState], list[ObjectInfo]]:
+) -> tuple[list[AgentState], list[OriginalInfo]]:
     """Convert TrackedObjects msg to AgentTrajectory instance.
 
     Args:
         msg (TrackedObjects): Tracked objects.
 
     Returns:
-        tuple[list[AgentState], list[ObjectInfo]]: List of converted states and original information.
+        tuple[list[AgentState], list[OriginalInfo]]: List of converted states and original information.
     """
     states: list[AgentState] = []
-    infos: list[ObjectInfo] = []
+    infos: list[OriginalInfo] = []
     timestamp = timestamp2ms(msg.header)
     for obj in msg.objects:
         obj: TrackedObject
@@ -83,9 +62,22 @@ def from_tracked_objects(
             )
         )
 
-        infos.append(ObjectInfo.from_msg(obj))
+        infos.append(OriginalInfo.from_msg(obj))
 
     return states, infos
+
+
+def sort_object_infos(infos: dict[str, OriginalInfo], uuids: list[str]) -> list[OriginalInfo]:
+    """Sort the list of object infos by input uuids.
+
+    Args:
+        infos (dict[str, OriginalInfo]): Dict of ObjectInfos history.
+        uuids (list[str]): List of uuids.
+
+    Returns:
+        list[OriginalInfo]: Sorted ObjectInfos.
+    """
+    return [infos[uuid] for uuid in uuids]
 
 
 def _uuid_msg_to_str(uuid_msg: RosUUID) -> str:

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import os.path as osp
 
 from autoware_perception_msgs.msg import ObjectClassification
 from autoware_perception_msgs.msg import PredictedObjects
@@ -6,6 +7,7 @@ from autoware_perception_msgs.msg import TrackedObjects
 from autoware_simpl_python.conversion import convert_lanelet
 from autoware_simpl_python.conversion import convert_odometry
 from autoware_simpl_python.conversion import from_tracked_objects
+from autoware_simpl_python.conversion import sort_object_infos
 from autoware_simpl_python.conversion import timestamp2ms
 from autoware_simpl_python.conversion import to_predicted_objects
 from autoware_simpl_python.dataclass import AgentHistory
@@ -13,6 +15,7 @@ from autoware_simpl_python.dataclass import AgentState
 from autoware_simpl_python.dataclass import LaneSegment
 from autoware_simpl_python.datatype import T4Agent
 from autoware_simpl_python.geometry import rotate_along_z
+from autoware_simpl_python.model import Simpl
 from autoware_simpl_python.preprocess import embed_agent
 from autoware_simpl_python.preprocess import embed_lane
 from autoware_simpl_python.preprocess import relative_pose_encode
@@ -25,32 +28,52 @@ import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 import rclpy.parameter
+from rclpy.qos import QoSHistoryPolicy
+from rclpy.qos import QoSProfile
+from rclpy.qos import QoSReliabilityPolicy
+import torch
+from typing_extensions import Self
+import yaml
 
 
 @dataclass
 class ModelInput:
-    agent: NDArray
+    uuids: list[str]
+    actor: NDArray
     lane: NDArray
     rpe: NDArray
     rpe_mask: NDArray | None = None
+
+    def cuda(self, device: int | torch.device | None = None) -> Self:
+        self.actor = torch.from_numpy(self.actor).cuda(device)
+        self.lane = torch.from_numpy(self.lane).cuda(device)
+        self.rpe = torch.from_numpy(self.rpe).cuda(device)
+        if self.rpe_mask is not None:
+            self.rpe_mask = torch.from_numpy(self.rpe_mask).cuda(device)
+
+        return self
 
 
 class SimplNode(Node):
     def __init__(self) -> None:
         super().__init__("simpl_python_node")
 
-        # TODO(ktro2828): QoS settings
+        qos_profile = QoSProfile(
+            reliability=QoSReliabilityPolicy.BEST_EFFORT,
+            history=QoSHistoryPolicy.KEEP_LAST,
+            depth=10,
+        )
         # subscribers
         self._object_sub = self.create_subscription(
             TrackedObjects,
             "~/input/objects",
             self._callback,
-            10,
+            qos_profile,
         )
-        self._ego_sub = self.create_subscription(Odometry, "~/input/ego", self._on_ego, 10)
+        self._ego_sub = self.create_subscription(Odometry, "~/input/ego", self._on_ego, qos_profile)
 
         # publisher
-        self._object_pub = self.create_publisher(PredictedObjects, "~/output/objects", 10)
+        self._object_pub = self.create_publisher(PredictedObjects, "~/output/objects", qos_profile)
 
         # ROS parameters
         descriptor = ParameterDescriptor(dynamic_typing=True)
@@ -93,16 +116,26 @@ class SimplNode(Node):
         self._label_ids = [T4Agent.from_str(label).value for label in labels]
 
         # onnx inference
-        self._session = InferenceSession(
-            model_path, providers=["CUDAExecutionProvider", "CPUExecutionProvider"]
-        )
-        self._input_names = [i.name for i in self._session.get_inputs()]
-        self._output_names = [o.name for o in self._session.get_outputs()]
+        self._is_onnx = osp.splitext(model_path)[-1] == ".onnx"
+        if self._is_onnx:
+            self._session = InferenceSession(
+                model_path, providers=["CUDAExecutionProvider", "CPUExecutionProvider"]
+            )
+            self._input_names = [i.name for i in self._session.get_inputs()]
+            self._output_names = [o.name for o in self._session.get_outputs()]
+        else:
+            model_config_path = (
+                self.declare_parameter("model_config", descriptor=descriptor)
+                .get_parameter_value()
+                .string_value
+            )
+            with open(model_config_path) as f:
+                model_config = yaml.safe_load(f)
+            self._model = Simpl(**model_config).cuda().eval()
 
         if build_only:
-            self.get_logger().info("Onnx runtime session is built and exit.")
-            self.destroy_node()
-            rclpy.try_shutdown()
+            self.get_logger().info("Model has been built successfully and exit.")
+            exit(0)
 
     def _on_ego(self, msg: Odometry) -> None:
         # TODO(ktro2828): update values
@@ -127,15 +160,28 @@ class SimplNode(Node):
         self._history.remove_invalid(timestamp, self._timestamp_threshold)
 
         # update agent history
-        # TODO(ktro2828): guarantee the order of agent info and history is same.
         states, infos = from_tracked_objects(msg)
-        self._history.update(states)
+        self._history.update(states, infos)
 
         # inference
         inputs = self._preprocess()
-        # TODO(ktro2828): check model output
-        pred_scores, pred_trajs = self._session.run(self._output_names, inputs)
+        # self.get_logger().info(f"{inputs.actor=}")
+        if self._is_onnx:
+            inputs = {name: getattr(inputs, name) for name in self._input_names}
+            pred_scores, pred_trajs = self._session.run(self._output_names, inputs)
+        else:
+            inputs = inputs.cuda()
+            with torch.no_grad():
+                pred_scores, pred_trajs = self._model(
+                    inputs.actor,
+                    inputs.lane,
+                    inputs.rpe,
+                    inputs.rpe_mask,
+                )
         pred_scores, pred_trajs = self._postprocess(pred_scores, pred_trajs)
+
+        # TODO(ktro2828): guarantee the order of agent info and history is same.
+        infos = sort_object_infos(self._history.infos, inputs.uuids)
 
         # convert to ROS msg
         pred_objs = to_predicted_objects(
@@ -146,14 +192,15 @@ class SimplNode(Node):
         )
         self._object_pub.publish(pred_objs)
 
-    def _preprocess(self) -> dict[str, NDArray]:
+    def _preprocess(self) -> ModelInput:
         """Run preprocess.
 
         Returns:
-            dict[str, NDArray]: Model inputs, which key is name of input.
+            ModelInput: Model inputs.
         """
+        trajectory, uuids = self._history.as_trajectory()
         agent, agent_ctr, agent_vec = embed_agent(
-            self._history.as_trajectory(),
+            trajectory,
             self._current_ego,
             self._label_ids,
         )
@@ -161,24 +208,32 @@ class SimplNode(Node):
 
         rpe, rpe_mask = relative_pose_encode(agent_ctr, agent_vec, lane_ctr, lane_vec)
 
-        inputs = ModelInput(agent, lane, rpe, rpe_mask)
-        return {name: getattr(inputs, name) for name in self._input_names}
+        return ModelInput(uuids, agent, lane, rpe, rpe_mask)
 
-    def _postprocess(self, pred_scores: NDArray, pred_trajs: NDArray) -> tuple[NDArray, NDArray]:
+    def _postprocess(
+        self,
+        pred_scores: NDArray | torch.Tensor,
+        pred_trajs: NDArray | torch.Tensor,
+    ) -> tuple[NDArray, NDArray]:
         """Run postprocess.
 
         Args:
-            pred_scores (NDArray): Predicted scores in the shape of (N, M).
-            pred_trajs (NDArray): Predicted trajectories in the shape of (N, M, T, 4).
+            pred_scores (NDArray | torch.Tensor): Predicted scores in the shape of (N, M).
+            pred_trajs (NDArray | torch.Tensor): Predicted trajectories in the shape of (N, M, T, 4).
 
         Returns:
             tuple[NDArray, NDArray]: Transformed and sorted prediction.
         """
+        if isinstance(pred_scores, torch.Tensor):
+            pred_scores = pred_scores.cpu().detach().numpy()
+        if isinstance(pred_trajs, torch.Tensor):
+            pred_trajs = pred_trajs.cpu().detach().numpy()
+
         num_agent, num_mode, num_future, num_feat = pred_trajs.shape
         assert num_feat == 4, f"Expected predicted feature is (x, y, vx, vy), but got {num_feat}"
 
         # transform from agent centric coords to world coords
-        current_agent = self._history.as_trajectory(latest=True)
+        current_agent, _ = self._history.as_trajectory(latest=True)
         pred_trajs[..., :2] = rotate_along_z(
             pred_trajs.reshape(num_agent, -1, num_feat)[..., :2], current_agent.yaw
         ).reshape(num_agent, num_mode, num_future, 2)

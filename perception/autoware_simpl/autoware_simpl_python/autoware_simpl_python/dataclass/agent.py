@@ -2,12 +2,37 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import ClassVar
+from typing import Sequence
 
+from autoware_perception_msgs.msg import ObjectClassification
+from autoware_perception_msgs.msg import Shape
+from autoware_perception_msgs.msg import TrackedObject
+from autoware_perception_msgs.msg import TrackedObjectKinematics
 import numpy as np
 from numpy.typing import ArrayLike
 from numpy.typing import NDArray
+from unique_identifier_msgs.msg import UUID as RosUUID
 
-__all__ = ("AgentState", "AgentTrajectory")
+__all__ = ("OriginalInfo", "AgentState", "AgentTrajectory")
+
+
+@dataclass(frozen=True)
+class OriginalInfo:
+    uuid: RosUUID
+    classification: Sequence[ObjectClassification]
+    shape: Shape
+    existence_probability: float
+    kinematics: TrackedObjectKinematics
+
+    @classmethod
+    def from_msg(cls, msg: TrackedObject) -> OriginalInfo:
+        return cls(
+            uuid=msg.object_id,
+            classification=msg.classification,
+            shape=msg.shape,
+            existence_probability=msg.existence_probability,
+            kinematics=msg.kinematics,
+        )
 
 
 @dataclass(frozen=True)

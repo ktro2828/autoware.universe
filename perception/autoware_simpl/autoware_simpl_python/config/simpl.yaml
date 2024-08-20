@@ -4,7 +4,7 @@ encoder:
     hidden_size: &D_ACTOR 128
     fpn_size: 4
   lane_net:
-    in_channels: 4
+    in_channels: 20
     hidden_size: &D_LANE 128
   fusion_net:
     d_actor: *D_ACTOR

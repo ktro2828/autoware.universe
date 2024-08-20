@@ -9,6 +9,7 @@ import numpy as np
 
 from .agent import AgentState
 from .agent import AgentTrajectory
+from .agent import OriginalInfo
 
 __all__ = ("AgentHistory",)
 
@@ -19,14 +20,15 @@ class AgentHistory:
 
     max_length: int
     histories: dict[str, deque[AgentState]] = field(default_factory=dict, init=False)
+    infos: dict[str, OriginalInfo] = field(default_factory=dict, init=False)
 
-    def update(self, states: Sequence[AgentState]) -> None:
+    def update(self, states: Sequence[AgentState], infos: Sequence[OriginalInfo]) -> None:
         """Update history data.
 
         Args:
             states (Sequence[AgentState]): Sequence of AgentStates.
         """
-        for state in states:
+        for state, info in zip(states, infos, strict=True):
             uuid = state.uuid
             if uuid not in self.histories:
                 self.histories[uuid] = deque(
@@ -34,36 +36,48 @@ class AgentHistory:
                     maxlen=self.max_length,
                 )
             self.histories[uuid].append(state)
+            self.infos[uuid] = info
 
-    def remove_invalid(self, cur_timestamp: float, threshold: float) -> None:
+    def remove_invalid(self, current_timestamp: float, threshold: float) -> None:
         """Remove agent histories whose the latest state are invalid or ancient.
 
         Args:
-            cur_timestamp (float): Current timestamp.
-            threshold (float): Threshold value to filter out ancient history.
+            current_timestamp (float): Current timestamp in [ms].
+            threshold (float): Threshold value to filter out ancient history in [ms].
         """
+        new_histories = self.histories.copy()
+        new_infos = self.infos.copy()
         for uuid, history in self.histories.items():
             latest = history[-1]
-            if (not latest.is_valid) or self.is_ancient(cur_timestamp, threshold):
-                del self.histories[uuid]
+            # TODO(ktro2828): use timestamp thereshold
+            # if (not latest.is_valid) or self.is_ancient(
+            #     latest.timestamp, current_timestamp, threshold
+            # ):
+            #     del new_histories[uuid]
+            if not latest.is_valid:
+                del new_histories[uuid]
+                del new_infos[uuid]
+
+        self.histories = new_histories
+        self.infos = new_infos
 
     @staticmethod
-    def is_ancient(latest: AgentState, cur_timestamp: float, threshold: float) -> bool:
+    def is_ancient(latest_timestamp: float, current_timestamp: float, threshold: float) -> bool:
         """Check whether the latest state is ancient.
 
         Args:
-            latest (AgentState): Latest state.
-            cur_timestamp (float): Current timestamp in [ms].
+            latest_timestamp (float): Latest state timestamp in [ms].
+            current_timestamp (float): Current timestamp in [ms].
             threshold (float): Timestamp threshold in [ms].
 
         Returns:
             bool: Return True if timestamp difference is greater than threshold,
                 which means ancient.
         """
-        timestamp_diff = cur_timestamp - latest.timestamp
+        timestamp_diff = abs(current_timestamp - latest_timestamp)
         return timestamp_diff > threshold
 
-    def as_trajectory(self, *, latest: bool = False) -> AgentTrajectory:
+    def as_trajectory(self, *, latest: bool = False) -> tuple[AgentTrajectory, list[str]]:
         """Convert agent history to AgentTrajectory.
 
         Args:
@@ -71,7 +85,7 @@ class AgentHistory:
                 in the shape of (N, D). Defaults to False.
 
         Returns:
-            AgentTrajectory: Instanced AgentTrajectory.
+            tuple[AgentTrajectory, list[str]]: Instanced AgentTrajectory and the list of their uuids.
         """
         if latest:
             return self._get_latest_trajectory()
@@ -79,7 +93,9 @@ class AgentHistory:
         num_agent = len(self.histories)
         waypoints = np.zeros((num_agent, self.max_length, AgentTrajectory.num_dim))
         label_ids = np.zeros(num_agent, dtype=np.int64)
-        for n, (_, history) in enumerate(self.histories.items()):
+        uuids: list[str] = []
+        for n, (uuid, history) in enumerate(self.histories.items()):
+            uuids.append(uuid)
             for t, state in enumerate(history):
                 waypoints[n, t] = (
                     *state.xyz,
@@ -90,18 +106,19 @@ class AgentHistory:
                 )
                 label_ids[n] = state.label_id
 
-        return AgentTrajectory(waypoints, label_ids)
+        return AgentTrajectory(waypoints, label_ids), uuids
 
-    def _get_latest_trajectory(self) -> AgentTrajectory:
+    def _get_latest_trajectory(self) -> tuple[AgentTrajectory, list[str]]:
         """Return the latest agent state trajectory.
 
         Returns:
-            AgentTrajectory: Instanced AgentTrajectory.
+            tuple[AgentTrajectory, list[str]]: Instanced AgentTrajectory and the list of their uuids.
         """
         num_agent = len(self.histories)
         waypoints = np.zeros((num_agent, AgentTrajectory.num_dim))
         label_ids = np.zeros(num_agent, dtype=np.int64)
-        for n, (_, history) in enumerate(self.histories.items()):
+        uuids: list[str] = []
+        for n, (uuid, history) in enumerate(self.histories.items()):
             state = history[-1]
             waypoints[n] = (
                 *state.xyz,
@@ -111,5 +128,6 @@ class AgentHistory:
                 state.is_valid,
             )
             label_ids[n] = state.label_id
+            uuids.append(uuid)
 
-        return AgentTrajectory(waypoints, label_ids)
+        return AgentTrajectory(waypoints, label_ids), uuids

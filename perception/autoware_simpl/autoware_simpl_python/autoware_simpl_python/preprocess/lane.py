@@ -82,6 +82,7 @@ def embed_lane(
             has_lr_neighbor[:, :-1],  # (K, P-1, 2)
         ),
         axis=-1,
+        dtype=np.float32,
     )
 
     tmp_lane_mask = lane_polyline_mask.any(axis=1)

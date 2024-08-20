@@ -1,4 +1,5 @@
 from torch import Tensor
+from torch import device
 from torch import nn
 from typing_extensions import Self
 
@@ -7,19 +8,9 @@ from .encoder import SimplEncoder
 
 
 class Simpl(nn.Module):
-    def __init__(
-        self,
-        actor_net: dict,
-        lane_net: dict,
-        fusion_net: dict,
-        decoder: dict,
-    ) -> None:
+    def __init__(self, encoder: dict, decoder: dict) -> None:
         super().__init__()
-        self.encoder = SimplEncoder(
-            actor_net=actor_net,
-            lane_net=lane_net,
-            fusion_net=fusion_net,
-        )
+        self.encoder = SimplEncoder(**encoder)
         self.decoder = SimplDecoder(**decoder)
 
     def to(self, *args, **kwargs) -> Self:
@@ -27,6 +18,12 @@ class Simpl(nn.Module):
         self.encoder.to(args, kwargs)
         self.decoder.to(args, kwargs)
         return super().to(args, kwargs)
+
+    def cuda(self, device: int | device | None = None) -> Self:
+        """Move all parameters and buffers to the GPU."""
+        self.encoder.cuda(device)
+        self.decoder.cuda(device)
+        return super().cuda(device)
 
     def forward(
         self,
