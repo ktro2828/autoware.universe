@@ -4,6 +4,7 @@ import os.path as osp
 from autoware_perception_msgs.msg import ObjectClassification
 from autoware_perception_msgs.msg import PredictedObjects
 from autoware_perception_msgs.msg import TrackedObjects
+from autoware_simpl_python.checkpoint import load_checkpoint
 from autoware_simpl_python.conversion import convert_lanelet
 from autoware_simpl_python.conversion import convert_odometry
 from autoware_simpl_python.conversion import from_tracked_objects
@@ -131,7 +132,9 @@ class SimplNode(Node):
             )
             with open(model_config_path) as f:
                 model_config = yaml.safe_load(f)
-            self._model = Simpl(**model_config).cuda().eval()
+            model = Simpl(**model_config)
+            model = load_checkpoint(model, model_path)
+            self._model = model.cuda().eval()
 
         if build_only:
             self.get_logger().info("Model has been built successfully and exit.")
