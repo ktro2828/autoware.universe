@@ -49,12 +49,9 @@ class AgentHistory:
         new_infos = self.infos.copy()
         for uuid, history in self.histories.items():
             latest = history[-1]
-            # TODO(ktro2828): use timestamp thereshold
-            # if (not latest.is_valid) or self.is_ancient(
-            #     latest.timestamp, current_timestamp, threshold
-            # ):
-            #     del new_histories[uuid]
-            if not latest.is_valid:
+            if (not latest.is_valid) or self.is_ancient(
+                latest.timestamp, current_timestamp, threshold
+            ):
                 del new_histories[uuid]
                 del new_infos[uuid]
 

@@ -1,11 +1,10 @@
 from autoware_simpl_python.dataclass import BoundarySegment
 from autoware_simpl_python.dataclass import LaneSegment
 from autoware_simpl_python.dataclass import Polyline
-from autoware_simpl_python.datatype import BoundaryType
-from autoware_simpl_python.datatype import T4Lane
-from autoware_simpl_python.datatype import T4Polyline
-from autoware_simpl_python.datatype import T4RoadEdge
-from autoware_simpl_python.datatype import T4RoadLine
+from autoware_simpl_python.datatype import LaneLabel
+from autoware_simpl_python.datatype import PolylineLabel
+from autoware_simpl_python.datatype import RoadEdgeLabel
+from autoware_simpl_python.datatype import RoadLineLabel
 import lanelet2
 from lanelet2.routing import RoutingGraph
 from lanelet2.traffic_rules import Locations
@@ -36,12 +35,12 @@ def convert_lanelet(filename: str) -> list[LaneSegment]:
         if lanelet_subtype == "":
             continue
 
-        if not T4Lane.contains(lanelet_subtype) or lanelet_subtype == "walkway":
+        if not LaneLabel.contains(lanelet_subtype) or lanelet_subtype == "walkway":
             continue
 
-        lane_type = T4Lane.from_str(lanelet_subtype)
+        lane_type = LaneLabel.from_str(lanelet_subtype)
         waypoints = np.array([(line.x, line.y, line.z) for line in lanelet.centerline])
-        polyline_type = T4Polyline.from_str(lanelet_subtype)
+        polyline_type = PolylineLabel.from_str(lanelet_subtype)
         polyline = Polyline(polyline_type=polyline_type, waypoints=waypoints)
         is_intersection = _is_intersection(lanelet)
         left_neighbor_ids, right_neighbor_ids = _get_left_and_right_neighbor_ids(
@@ -183,7 +182,7 @@ def _get_boundary_segment(linestring: lanelet2.core.LineString3d) -> BoundarySeg
     """
     boundary_type = _get_boundary_type(linestring)
     waypoints = np.array([(line.x, line.y, line.z) for line in linestring])
-    polyline_type = T4Polyline.from_str(str(boundary_type))
+    polyline_type = PolylineLabel.from_str(str(boundary_type))
     polyline = Polyline(polyline_type=polyline_type, waypoints=waypoints)
     return BoundarySegment(linestring.id, boundary_type, polyline)
 
@@ -261,7 +260,7 @@ def _is_roadedge_linestring(line_type: str, _line_subtype: str) -> bool:
         Currently `_line_subtype` is not used, but it might be used in the future.
 
     """
-    return line_type.upper() in T4RoadEdge.__members__
+    return line_type.upper() in RoadEdgeLabel.__members__
 
 
 def _is_roadline_linestring(_line_type: str, line_subtype: str) -> bool:
@@ -282,10 +281,12 @@ def _is_roadline_linestring(_line_type: str, line_subtype: str) -> bool:
         Currently `_line_type` is not used, but it might be used in the future.
 
     """
-    return line_subtype.upper() in T4RoadLine.__members__
+    return line_subtype.upper() in RoadLineLabel.__members__
 
 
-def _get_boundary_type(linestring: lanelet2.core.LineString3d) -> BoundaryType:
+def _get_boundary_type(
+    linestring: lanelet2.core.LineString3d,
+) -> RoadEdgeLabel | RoadLineLabel:
     """
     Return the `BoundaryType` from linestring.
 
@@ -295,16 +296,16 @@ def _get_boundary_type(linestring: lanelet2.core.LineString3d) -> BoundaryType:
 
     Returns:
     -------
-        BoundaryType: BoundaryType instance.
+        RoadEdgeLabel | RoadLineLabel: BoundaryType instance.
 
     """
     line_type = _get_linestring_type(linestring)
     line_subtype = _get_linestring_subtype(linestring)
     if _is_virtual_linestring(line_type, line_subtype):
-        return T4RoadLine.VIRTUAL
+        return RoadLineLabel.VIRTUAL
     elif _is_roadedge_linestring(line_type, line_subtype):
-        return T4RoadEdge.from_str(line_type)
+        return RoadEdgeLabel.from_str(line_type)
     elif _is_roadline_linestring(line_type, line_subtype):
-        return T4RoadLine.from_str(line_subtype)
+        return RoadLineLabel.from_str(line_subtype)
     else:
-        return T4RoadLine.VIRTUAL
+        return RoadLineLabel.VIRTUAL

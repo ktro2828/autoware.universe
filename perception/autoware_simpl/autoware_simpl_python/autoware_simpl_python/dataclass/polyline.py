@@ -4,10 +4,9 @@ from dataclasses import dataclass
 from typing import ClassVar
 from typing import Final
 
+from autoware_simpl_python.datatype import PolylineLabel
 import numpy as np
 from numpy.typing import NDArray
-
-from autoware_simpl_python.datatype import PolylineType
 
 __all__ = ("Polyline",)
 
@@ -27,7 +26,7 @@ class Polyline:
 
     """
 
-    polyline_type: PolylineType
+    polyline_type: PolylineLabel
     waypoints: NDArray
 
     # NOTE: For the 1DArray indices must be a list.
@@ -43,7 +42,7 @@ class Polyline:
         min_ndim: Final[int] = 1
         point_dim: Final[int] = 3
         assert self.waypoints.ndim > min_ndim and self.waypoints.shape[1] == point_dim
-        assert isinstance(self.polyline_type, PolylineType)
+        assert isinstance(self.polyline_type, PolylineLabel)
 
     @property
     def xyz(self) -> NDArray:

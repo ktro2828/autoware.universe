@@ -15,7 +15,9 @@ def load_checkpoint(model: nn.Module, filepath: str, *, strict: bool = True) -> 
     Returns:
         nn.Module: Module after loading the checkpoint.
     """
-    checkpoint: dict = torch.load(filepath, map_location=torch.device("cpu"))["model"]
+    checkpoint: dict = torch.load(filepath, map_location=torch.device("cpu"), weights_only=True)[
+        "model"
+    ]
 
     state_dict: dict = model.module.state_dict() if is_parallel(model) else model.state_dict()
 

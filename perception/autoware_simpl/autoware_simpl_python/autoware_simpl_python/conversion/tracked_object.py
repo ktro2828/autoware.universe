@@ -8,7 +8,7 @@ from autoware_perception_msgs.msg import TrackedObject
 from autoware_perception_msgs.msg import TrackedObjects
 from autoware_simpl_python.dataclass import AgentState
 from autoware_simpl_python.dataclass import OriginalInfo
-from autoware_simpl_python.datatype import T4Agent
+from autoware_simpl_python.datatype import AgentLabel
 import numpy as np
 from unique_identifier_msgs.msg import UUID as RosUUID
 
@@ -115,12 +115,12 @@ def _convert_label(label: int) -> int:
         ObjectClassification.TRAILER,
         ObjectClassification.TRUCK,
     ):
-        return T4Agent.VEHICLE.value
+        return AgentLabel.VEHICLE.value
     elif label in (ObjectClassification.BICYCLE, ObjectClassification.MOTORCYCLE):
-        return T4Agent.CYCLIST.value
+        return AgentLabel.CYCLIST.value
     elif label == ObjectClassification.PEDESTRIAN:
-        return T4Agent.PEDESTRIAN
+        return AgentLabel.PEDESTRIAN
     elif label == ObjectClassification.UNKNOWN:
-        return T4Agent.UNKNOWN.value
+        return AgentLabel.UNKNOWN.value
     else:
-        return T4Agent.STATIC.value
+        return AgentLabel.STATIC.value

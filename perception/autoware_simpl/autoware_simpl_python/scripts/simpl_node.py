@@ -14,11 +14,11 @@ from autoware_simpl_python.conversion import to_predicted_objects
 from autoware_simpl_python.dataclass import AgentHistory
 from autoware_simpl_python.dataclass import AgentState
 from autoware_simpl_python.dataclass import LaneSegment
-from autoware_simpl_python.datatype import T4Agent
+from autoware_simpl_python.datatype import AgentLabel
 from autoware_simpl_python.geometry import rotate_along_z
 from autoware_simpl_python.model import Simpl
 from autoware_simpl_python.preprocess import embed_agent
-from autoware_simpl_python.preprocess import embed_lane
+from autoware_simpl_python.preprocess import embed_polyline
 from autoware_simpl_python.preprocess import relative_pose_encode
 from nav_msgs.msg import Odometry
 import numpy as np
@@ -114,7 +114,7 @@ class SimplNode(Node):
         self._current_ego: AgentState | None = None
         self._history = AgentHistory(max_length=num_timestamp)
 
-        self._label_ids = [T4Agent.from_str(label).value for label in labels]
+        self._label_ids = [AgentLabel.from_str(label).value for label in labels]
 
         # onnx inference
         self._is_onnx = osp.splitext(model_path)[-1] == ".onnx"
@@ -168,7 +168,6 @@ class SimplNode(Node):
 
         # inference
         inputs = self._preprocess()
-        # self.get_logger().info(f"{inputs.actor=}")
         if self._is_onnx:
             inputs = {name: getattr(inputs, name) for name in self._input_names}
             pred_scores, pred_trajs = self._session.run(self._output_names, inputs)
@@ -207,7 +206,11 @@ class SimplNode(Node):
             self._current_ego,
             self._label_ids,
         )
-        lane, lane_ctr, lane_vec = embed_lane(self._lane_segments, self._current_ego)
+        lane, lane_ctr, lane_vec = embed_polyline(
+            self._lane_segments,
+            self._current_ego,
+        )
+        # lane, lane_ctr, lane_vec = embed_lane(self._lane_segments, self._current_ego)
 
         rpe, rpe_mask = relative_pose_encode(agent_ctr, agent_vec, lane_ctr, lane_vec)
 
@@ -217,12 +220,17 @@ class SimplNode(Node):
         self,
         pred_scores: NDArray | torch.Tensor,
         pred_trajs: NDArray | torch.Tensor,
+        top_k: int | None = None,
     ) -> tuple[NDArray, NDArray]:
         """Run postprocess.
 
         Args:
-            pred_scores (NDArray | torch.Tensor): Predicted scores in the shape of (N, M).
-            pred_trajs (NDArray | torch.Tensor): Predicted trajectories in the shape of (N, M, T, 4).
+            pred_scores (NDArray | torch.Tensor): Predicted scores in the shape of
+                (N, M).
+            pred_trajs (NDArray | torch.Tensor): Predicted trajectories in the shape of
+                (N, M, T, 4).
+            top_k (int | None): The number of top K modes to be extracted. If None, all
+                modes will be output.
 
         Returns:
             tuple[NDArray, NDArray]: Transformed and sorted prediction.
@@ -238,7 +246,7 @@ class SimplNode(Node):
         # transform from agent centric coords to world coords
         current_agent, _ = self._history.as_trajectory(latest=True)
         pred_trajs[..., :2] = rotate_along_z(
-            pred_trajs.reshape(num_agent, -1, num_feat)[..., :2], current_agent.yaw
+            pred_trajs.reshape(num_agent, -1, num_feat)[..., :2], -current_agent.yaw
         ).reshape(num_agent, num_mode, num_future, 2)
         pred_trajs[..., :2] += current_agent.xy[:, None, None, :]
 
@@ -248,6 +256,9 @@ class SimplNode(Node):
         pred_scores = np.take_along_axis(pred_scores, sort_indices, axis=1)
         pred_scores = np.divide(pred_scores, pred_scores.sum(), where=pred_scores != 0)
         pred_trajs = np.take_along_axis(pred_trajs, sort_indices[..., None, None], axis=1)
+
+        pred_scores = pred_scores[:, :top_k]
+        pred_trajs = pred_trajs[:, :top_k]
 
         return pred_scores, pred_trajs
 

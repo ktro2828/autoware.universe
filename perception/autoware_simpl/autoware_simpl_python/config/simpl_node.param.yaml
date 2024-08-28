@@ -1,7 +1,7 @@
 /**:
   ros__parameters:
     num_timestamp: 48
-    timestamp_threshold: 150 # [ms]
+    timestamp_threshold: 2000 # [ms]
     labels: ["VEHICLE", "PEDESTRIAN", "CYCLIST"]
     model_path: "$(var data_path)/simpl_47x108.pth"
     model_config: "$(find-pkg-share autoware_simpl_python)/config/simpl.yaml"

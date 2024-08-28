@@ -1,5 +1,4 @@
 from abc import ABCMeta
-from abc import abstractmethod
 from enum import EnumMeta
 from enum import IntEnum
 import sys
@@ -13,13 +12,10 @@ else:
 
 
 __all__ = (
-    "T4Agent",
-    "PolylineType",
-    "LaneType",
-    "BoundaryType",
-    "T4Lane",
-    "T4RoadLine",
-    "T4RoadEdge",
+    "AgentLabel",
+    "LaneLabel",
+    "RoadLineLabel",
+    "RoadEdgeLabel",
 )
 
 
@@ -66,8 +62,8 @@ class _TypeBase(IntEnum, metaclass=ABCEnumMeta):
         return name.upper() in cls.__members__
 
 
-class T4Agent(_TypeBase):
-    """Agent types in T4."""
+class AgentLabel(_TypeBase):
+    """Agent types."""
 
     # Dynamic movers
     VEHICLE = 0
@@ -89,89 +85,11 @@ class T4Agent(_TypeBase):
             bool: True if any of (VEHICLE, PEDESTRIAN, MOTORCYCLIST, CYCLIST, BUS).
 
         """
-        return self in (T4Agent.VEHICLE, T4Agent.PEDESTRIAN, T4Agent.CYCLIST)
+        return self in (AgentLabel.VEHICLE, AgentLabel.PEDESTRIAN, AgentLabel.CYCLIST)
 
 
-class PolylineType(_TypeBase, metaclass=ABCEnumMeta):
-    """A base enum of Polyline."""
-
-    def is_dynamic(self) -> bool:
-        """
-        Whether the item is dynamic.
-
-        Returns
-        -------
-            bool: Return always False.
-
-        """
-        return False
-
-
-class LaneType(_TypeBase, metaclass=ABCEnumMeta):
-    """A base enum of Lane."""
-
-    def is_dynamic(self) -> bool:
-        """
-        Whether the item is dynamic.
-
-        Returns
-        -------
-            bool: Return always False.
-
-        """
-        return False
-
-    @abstractmethod
-    def is_drivable(self) -> bool:
-        """
-        Indicate whether the lane is drivable.
-
-        Returns
-        -------
-            bool: Return `True` if drivable.
-
-        """
-
-
-class BoundaryType(_TypeBase, metaclass=ABCEnumMeta):
-    """A base enum of RoadLine and RoadEdge."""
-
-    def is_dynamic(self) -> bool:
-        """
-        Indicate whether the lane is drivable.
-
-        Returns
-        -------
-            bool: Return always False.
-
-        """
-        return False
-
-    @abstractmethod
-    def is_virtual(self) -> bool:
-        """
-        Whether the boundary is virtual or not.
-
-        Returns
-        -------
-            bool: Return `True` if the boundary is virtual.
-
-        """
-
-    @abstractmethod
-    def is_crossable(self) -> bool:
-        """
-        Whether the boundary is allowed to cross or not.
-
-        Returns
-        -------
-            bool: Return `True` if the boundary is allowed to cross.
-
-        """
-
-
-class T4Polyline(PolylineType):
-    """Polyline types in T4."""
+class PolylineLabel(_TypeBase):
+    """Polyline types."""
 
     # for lane
     ROAD = 0
@@ -203,8 +121,8 @@ class T4Polyline(PolylineType):
     UNKNOWN = -1
 
 
-class T4Lane(LaneType):
-    """Lane types in T4."""
+class LaneLabel(_TypeBase):
+    """Lane types."""
 
     ROAD = 0
     HIGHWAY = 1
@@ -225,11 +143,11 @@ class T4Lane(LaneType):
             bool: True if drivable.
 
         """
-        return self in (T4Lane.ROAD, T4Lane.HIGHWAY, T4Lane.ROAD_SHOULDER)
+        return self in (LaneLabel.ROAD, LaneLabel.HIGHWAY, LaneLabel.ROAD_SHOULDER)
 
 
-class T4RoadLine(BoundaryType):
-    """Road line types in T4."""
+class RoadLineLabel(_TypeBase):
+    """Road line types."""
 
     DASHED = 0
     SOLID = 1
@@ -248,7 +166,7 @@ class T4RoadLine(BoundaryType):
             bool: Return `True` if the boundary is allowed to cross.
 
         """
-        return self in (T4RoadLine.DASHED, T4RoadLine.DASHED_DASHED)
+        return self in (RoadLineLabel.DASHED, RoadLineLabel.DASHED_DASHED)
 
     def is_virtual(self) -> bool:
         """
@@ -259,11 +177,11 @@ class T4RoadLine(BoundaryType):
             bool: Return `True` if the boundary is virtual.
 
         """
-        return self == T4RoadLine.VIRTUAL
+        return self == RoadLineLabel.VIRTUAL
 
 
-class T4RoadEdge(BoundaryType):
-    """Road edge types in T4."""
+class RoadEdgeLabel(_TypeBase):
+    """Road edge types."""
 
     ROAD_BORDER = 0
 

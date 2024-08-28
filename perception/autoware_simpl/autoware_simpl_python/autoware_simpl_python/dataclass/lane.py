@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from autoware_simpl_python.datatype import LaneLabel
+from autoware_simpl_python.datatype import RoadEdgeLabel
+from autoware_simpl_python.datatype import RoadLineLabel
 import numpy as np
 from numpy.typing import NDArray
 
 from .polyline import Polyline
-from autoware_simpl_python.datatype import LaneType, BoundaryType
 
 __all__ = ("LaneSegment", "BoundarySegment")
 
@@ -33,7 +35,7 @@ class LaneSegment:
     """
 
     lane_id: int
-    lane_type: LaneType
+    lane_type: LaneLabel
     polyline: Polyline
     is_intersection: bool
     left_boundaries: list[BoundarySegment]
@@ -43,7 +45,7 @@ class LaneSegment:
     speed_limit_mph: float | None = None
 
     def __post_init__(self) -> None:
-        assert isinstance(self.lane_type, LaneType), "Expected LaneType."
+        assert isinstance(self.lane_type, LaneLabel), "Expected LaneType."
         assert isinstance(self.polyline, Polyline), "Expected Polyline."
         assert isinstance(self.left_boundaries, list) and all(
             isinstance(b, BoundarySegment) for b in self.left_boundaries
@@ -177,17 +179,19 @@ class BoundarySegment:
     Attributes
     ----------
         boundary_id (int): Unique ID associated with this boundary.
-        boundary_type (BoundaryType): `BoundaryType` instance.
+        boundary_type (RoadEdgeLabel | RoadLineLabel): `BoundaryType` instance.
         polyline (Polyline): `Polyline` instance.
 
     """
 
     boundary_id: int
-    boundary_type: BoundaryType
+    boundary_type: RoadEdgeLabel | RoadLineLabel
     polyline: Polyline
 
     def __post_init__(self) -> None:
-        assert isinstance(self.boundary_type, BoundaryType), "Expected BoundaryType."
+        assert isinstance(
+            self.boundary_type, (RoadEdgeLabel, RoadLineLabel)
+        ), "Expected BoundaryType."
         assert isinstance(self.polyline, Polyline), "Expected Polyline."
 
     def is_crossable(self) -> bool:
