@@ -6,7 +6,7 @@ from autoware_perception_msgs.msg import PredictedObjects
 from autoware_perception_msgs.msg import TrackedObjects
 from autoware_simpl_python.checkpoint import load_checkpoint
 from autoware_simpl_python.conversion import convert_lanelet
-from autoware_simpl_python.conversion import convert_odometry
+from autoware_simpl_python.conversion import convert_transform_stamped
 from autoware_simpl_python.conversion import from_tracked_objects
 from autoware_simpl_python.conversion import sort_object_infos
 from autoware_simpl_python.conversion import timestamp2ms
@@ -20,18 +20,22 @@ from autoware_simpl_python.model import Simpl
 from autoware_simpl_python.preprocess import embed_agent
 from autoware_simpl_python.preprocess import embed_polyline
 from autoware_simpl_python.preprocess import relative_pose_encode
-from nav_msgs.msg import Odometry
 import numpy as np
 from numpy.typing import NDArray
 from onnxruntime import InferenceSession
 from rcl_interfaces.msg import ParameterDescriptor
 import rclpy
+import rclpy.duration
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 import rclpy.parameter
 from rclpy.qos import QoSHistoryPolicy
 from rclpy.qos import QoSProfile
 from rclpy.qos import QoSReliabilityPolicy
+from std_msgs.msg import Header
+from tf2_ros import TransformException
+from tf2_ros.buffer import Buffer
+from tf2_ros.transform_listener import TransformListener
 import torch
 from typing_extensions import Self
 import yaml
@@ -71,7 +75,6 @@ class SimplNode(Node):
             self._callback,
             qos_profile,
         )
-        self._ego_sub = self.create_subscription(Odometry, "~/input/ego", self._on_ego, qos_profile)
 
         # publisher
         self._object_pub = self.create_publisher(PredictedObjects, "~/output/objects", qos_profile)
@@ -111,7 +114,6 @@ class SimplNode(Node):
 
         # input attributes
         self._lane_segments: list[LaneSegment] = convert_lanelet(lanelet_file)
-        self._current_ego: AgentState | None = None
         self._history = AgentHistory(max_length=num_timestamp)
 
         self._label_ids = [AgentLabel.from_str(label).value for label in labels]
@@ -140,22 +142,13 @@ class SimplNode(Node):
             self.get_logger().info("Model has been built successfully and exit.")
             exit(0)
 
-    def _on_ego(self, msg: Odometry) -> None:
-        # TODO(ktro2828): update values
-        uuid = "Ego"
-        label_id = ObjectClassification.CAR
-        size = np.array((0, 0, 0))
-
-        self._current_ego = convert_odometry(
-            msg,
-            uuid=uuid,
-            label_id=label_id,
-            size=size,
-        )
+        self._tf_buffer = Buffer()
+        self._tf_listener = TransformListener(self._tf_buffer, self)
 
     def _callback(self, msg: TrackedObjects) -> None:
-        if self._current_ego is None:
-            self.get_logger().warning("Ego odometry is not subscribed yet...")
+        current_ego = self._get_current_ego(msg.header)
+
+        if current_ego is None:
             return
 
         # remove ancient agent history
@@ -167,7 +160,8 @@ class SimplNode(Node):
         self._history.update(states, infos)
 
         # inference
-        inputs = self._preprocess()
+        inputs = self._preprocess(self._history, current_ego, self._lane_segments)
+        # self.get_logger().info(f"{inputs.actor[0]=}")
         if self._is_onnx:
             inputs = {name: getattr(inputs, name) for name in self._input_names}
             pred_scores, pred_trajs = self._session.run(self._output_names, inputs)
@@ -194,23 +188,52 @@ class SimplNode(Node):
         )
         self._object_pub.publish(pred_objs)
 
-    def _preprocess(self) -> ModelInput:
+    def _get_current_ego(self, header: Header) -> AgentState | None:
+        """Return the current ego state. If failed to listen to transform, returns None.
+
+        Args:
+            header (Header): Current message header.
+
+        Returns:
+            AgentState | None: Returns AgentState if succeeded to listen transform.
+        """
+        to_frame = "map"
+        from_frame = "base_link"
+
+        # TODO(ktro2828): update values
+        uuid = "Ego"
+        label_id = ObjectClassification.CAR
+        size = np.array((0, 0, 0))
+        vxy = np.array((0.0, 0.0))
+
+        try:
+            tf_stamped = self._tf_buffer.lookup_transform(
+                to_frame, from_frame, header.stamp, rclpy.duration.Duration(seconds=0.1)
+            )
+            return convert_transform_stamped(tf_stamped, uuid, label_id, size, vxy)
+        except TransformException as ex:
+            self.get_logger().warn(f"Could not transform {to_frame} to {from_frame}: {ex}")
+            return None
+
+    def _preprocess(
+        self,
+        history: AgentHistory,
+        current_ego: AgentState,
+        lane_segments: list[LaneSegment],
+    ) -> ModelInput:
         """Run preprocess.
+
+        Args:
+            history (AgentHistory): Agent history.
+            current_ego (AgentState): Current ego state.
+            lane_segments (list[LaneSegments]): Lane segments.
 
         Returns:
             ModelInput: Model inputs.
         """
-        trajectory, uuids = self._history.as_trajectory()
-        agent, agent_ctr, agent_vec = embed_agent(
-            trajectory,
-            self._current_ego,
-            self._label_ids,
-        )
-        lane, lane_ctr, lane_vec = embed_polyline(
-            self._lane_segments,
-            self._current_ego,
-        )
-        # lane, lane_ctr, lane_vec = embed_lane(self._lane_segments, self._current_ego)
+        trajectory, uuids = history.as_trajectory()
+        agent, agent_ctr, agent_vec = embed_agent(trajectory, current_ego, self._label_ids)
+        lane, lane_ctr, lane_vec = embed_polyline(lane_segments, current_ego)
 
         rpe, rpe_mask = relative_pose_encode(agent_ctr, agent_vec, lane_ctr, lane_vec)
 
@@ -254,7 +277,6 @@ class SimplNode(Node):
         pred_scores = np.clip(pred_scores, a_min=0.0, a_max=1.0)
         sort_indices = np.argsort(-pred_scores, axis=1)
         pred_scores = np.take_along_axis(pred_scores, sort_indices, axis=1)
-        pred_scores = np.divide(pred_scores, pred_scores.sum(), where=pred_scores != 0)
         pred_trajs = np.take_along_axis(pred_trajs, sort_indices[..., None, None], axis=1)
 
         pred_scores = pred_scores[:, :top_k]
