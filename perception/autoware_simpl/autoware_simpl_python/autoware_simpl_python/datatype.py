@@ -63,13 +63,12 @@ class _TypeBase(IntEnum, metaclass=ABCEnumMeta):
 
 
 class AgentLabel(_TypeBase):
-    """Agent types."""
+    """Agent types for T4."""
 
     # Dynamic movers
     VEHICLE = 0
     PEDESTRIAN = 1
     CYCLIST = 2
-
     # Static objects
     STATIC = 3
 
@@ -86,6 +85,43 @@ class AgentLabel(_TypeBase):
 
         """
         return self in (AgentLabel.VEHICLE, AgentLabel.PEDESTRIAN, AgentLabel.CYCLIST)
+
+
+# class AgentLabel(_TypeBase):
+#     """Agent types for AV2."""
+
+#     # Dynamic movers
+#     VEHICLE = 0
+#     PEDESTRIAN = 1
+#     MOTORCYCLIST = 2
+#     CYCLIST = 3
+#     BUS = 4
+
+#     # Static objects
+#     STATIC = 5
+#     BACKGROUND = 6
+#     CONSTRUCTION = 7
+#     RIDERLESS_BICYCLE = 8
+
+#     # Catch-all type for other/unknown objects
+#     UNKNOWN = 9
+
+#     def is_dynamic(self) -> bool:
+#         """
+#         Whether the object is dynamic movers.
+
+#         Returns
+#         -------
+#             bool: True if any of (VEHICLE, PEDESTRIAN, MOTORCYCLIST, CYCLIST, BUS).
+
+#         """
+#         return self in (
+#             AgentLabel.VEHICLE,
+#             AgentLabel.PEDESTRIAN,
+#             AgentLabel.MOTORCYCLIST,
+#             AgentLabel.CYCLIST,
+#             AgentLabel.BUS,
+#         )
 
 
 class PolylineLabel(_TypeBase):

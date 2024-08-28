@@ -174,7 +174,7 @@ class SimplNode(Node):
                     inputs.rpe,
                     inputs.rpe_mask,
                 )
-        pred_scores, pred_trajs = self._postprocess(pred_scores, pred_trajs)
+        pred_scores, pred_trajs = self._postprocess(pred_scores, pred_trajs, top_k=3)
 
         # TODO(ktro2828): guarantee the order of agent info and history is same.
         infos = sort_object_infos(self._history.infos, inputs.uuids)

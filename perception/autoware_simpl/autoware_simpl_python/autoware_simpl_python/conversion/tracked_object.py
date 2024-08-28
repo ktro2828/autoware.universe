@@ -124,3 +124,32 @@ def _convert_label(label: int) -> int:
         return AgentLabel.UNKNOWN.value
     else:
         return AgentLabel.STATIC.value
+
+
+# def _convert_label(label: int) -> int:
+#     """Convert the label of ObjectClassification to T4Agent.
+
+#     Args:
+#         label (int): Label id.
+
+#     Returns:
+#         int: T4Agent value.
+#     """
+#     if label == ObjectClassification.CAR:
+#         return AgentLabel.VEHICLE.value
+#     elif label == ObjectClassification.MOTORCYCLE:
+#         return AgentLabel.MOTORCYCLIST
+#     elif label == ObjectClassification.BICYCLE:
+#         return AgentLabel.CYCLIST.value
+#     elif label == ObjectClassification.PEDESTRIAN:
+#         return AgentLabel.PEDESTRIAN
+#     elif label in (
+#         ObjectClassification.BUS,
+#         ObjectClassification.TRAILER,
+#         ObjectClassification.TRUCK,
+#     ):
+#         return AgentLabel.BUS
+#     elif label == ObjectClassification.UNKNOWN:
+#         return AgentLabel.UNKNOWN.value
+#     else:
+#         return AgentLabel.STATIC.value
