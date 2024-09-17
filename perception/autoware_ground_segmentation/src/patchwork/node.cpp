@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "ground_segmentation/patchwork/nodelet.hpp"
+#include "node.hpp"
 
 #include <Eigen/Dense>
 #include <rcpputils/asserts.hpp>
@@ -21,7 +21,9 @@
 #include <pcl/common/centroid.h>
 #include <pcl/common/io.h>
 
-namespace ground_segmentation
+#include <algorithm>
+
+namespace autoware::ground_segmentation
 {
 PatchWorkComponent::PatchWorkComponent(const rclcpp::NodeOptions & options)
 : rclcpp::Node("patchwork_node", options),
@@ -66,7 +68,7 @@ void PatchWorkComponent::cloud_callback(sensor_msgs::msg::PointCloud2::ConstShar
     stop_watch_ptr_->toc("processing_time", true);
   }
 
-  std::chrono::system_clock::time_point start, end;
+  std::chrono::system_clock::time_point start;
   start = std::chrono::system_clock::now();
 
   in_cloud_->clear();
@@ -418,7 +420,7 @@ void PatchWorkComponent::cloud_to_czm(
   }
 }
 
-}  // namespace ground_segmentation
+}  // namespace autoware::ground_segmentation
 
 #include <rclcpp_components/register_node_macro.hpp>
-RCLCPP_COMPONENTS_REGISTER_NODE(ground_segmentation::PatchWorkComponent);
+RCLCPP_COMPONENTS_REGISTER_NODE(autoware::ground_segmentation::PatchWorkComponent);

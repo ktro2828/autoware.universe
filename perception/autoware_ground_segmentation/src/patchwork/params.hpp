@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef GROUND_SEGMENTATION__PATCHWORK__PARAMS_HPP_
-#define GROUND_SEGMENTATION__PATCHWORK__PARAMS_HPP_
+#ifndef PATCHWORK__PARAMS_HPP_
+#define PATCHWORK__PARAMS_HPP_
 
 #include <rclcpp/rclcpp.hpp>
 
 #include <utility>
 #include <vector>
 
-namespace ground_segmentation
+namespace autoware::ground_segmentation
 {
 class CommonParams
 {
@@ -199,6 +199,6 @@ public:
   const std::vector<double> & flatness_std_weights() const { return flatness_std_weights_; }
   double flatness_std_weights(const size_t i) const { return flatness_std_weights_.at(i); }
 };  // class TGRParams
-}  // namespace ground_segmentation
+}  // namespace autoware::ground_segmentation
 
-#endif  // GROUND_SEGMENTATION__PATCHWORK__PARAMS_HPP_
+#endif  // PATCHWORK__PARAMS_HPP_

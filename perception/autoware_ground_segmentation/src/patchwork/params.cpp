@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "ground_segmentation/patchwork/params.hpp"
+#include "params.hpp"
 
-namespace ground_segmentation
+namespace autoware::ground_segmentation
 {
 CommonParams::CommonParams(rclcpp::Node * node)
 {
@@ -134,4 +134,4 @@ TGRParams::TGRParams(rclcpp::Node * node)
 {
   flatness_std_weights_ = node->declare_parameter<std::vector<double>>("tgr.flatness_std_weights");
 }
-}  // namespace ground_segmentation
+}  // namespace autoware::ground_segmentation

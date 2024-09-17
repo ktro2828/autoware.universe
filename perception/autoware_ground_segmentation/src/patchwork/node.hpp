@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef GROUND_SEGMENTATION__PATCHWORK__NODELET_HPP_
-#define GROUND_SEGMENTATION__PATCHWORK__NODELET_HPP_
+#ifndef PATCHWORK__NODE_HPP_
+#define PATCHWORK__NODE_HPP_
 
-#include "ground_segmentation/patchwork/params.hpp"
+#include "params.hpp"
 
+#include <autoware/universe_utils/ros/debug_publisher.hpp>
+#include <autoware/universe_utils/system/stop_watch.hpp>
 #include <pcl/impl/point_types.hpp>
 #include <rclcpp/rclcpp.hpp>
-#include <tier4_autoware_utils/ros/debug_publisher.hpp>
-#include <tier4_autoware_utils/system/stop_watch.hpp>
 
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <std_msgs/msg/header.hpp>
@@ -36,13 +36,13 @@
 #include <utility>
 #include <vector>
 
-namespace ground_segmentation
+namespace autoware::ground_segmentation
 {
 using PointT = pcl::PointXYZI;
 using Ring = std::vector<pcl::PointCloud<PointT>>;
 using Zone = std::vector<Ring>;
-using StopWatch = tier4_autoware_utils::StopWatch<std::chrono::milliseconds>;
-using DebugPublisher = tier4_autoware_utils::DebugPublisher;
+using StopWatch = autoware::universe_utils::StopWatch<std::chrono::milliseconds>;
+using DebugPublisher = autoware::universe_utils::DebugPublisher;
 
 class PatchWorkComponent : public rclcpp::Node
 {
@@ -334,6 +334,6 @@ private:
   void cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr cloud_msg);
 };  // class PatchWorkPP
 
-}  // namespace ground_segmentation
+}  // namespace autoware::ground_segmentation
 
-#endif  // GROUND_SEGMENTATION__PATCHWORK__NODELET_HPP_
+#endif  // PATCHWORK__NODE_HPP_
