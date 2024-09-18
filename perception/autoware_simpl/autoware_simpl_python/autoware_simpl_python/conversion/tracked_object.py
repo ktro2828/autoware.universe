@@ -35,6 +35,9 @@ def from_tracked_objects(
     for obj in msg.objects:
         obj: TrackedObject
 
+        if len(obj.classification) == 0:  # TODO: Implement with a better way
+            continue
+
         classification = _max_probability_classification(obj.classification)
         label_id = _convert_label(classification.label)
 

@@ -17,6 +17,7 @@ def to_predicted_objects(
     infos: Sequence[OriginalInfo],
     pred_scores: NDArray,
     pred_trajs: NDArray,
+    score_threshold: float,
 ) -> PredictedObjects:
     """Convert predictions to PredictedObjects msg.
 
@@ -25,6 +26,7 @@ def to_predicted_objects(
         infos (Sequence[OriginalInfo]): List of original message information.
         pred_scores (NDArray): Predicted score tensor in the shape of (N, M).
         pred_trajs (NDArray): Predicted trajectory tensor in the shape of (N, M, T, 4).
+        score_threshold (float): Threshold value of score.
 
     Returns:
         PredictedObjects: Instanced msg.
@@ -33,7 +35,7 @@ def to_predicted_objects(
     output.header = header
     # convert each object
     for info, cur_scores, cur_trajs in zip(infos, pred_scores, pred_trajs, strict=True):
-        pred_obj = _to_predicted_object(info, cur_scores, cur_trajs)
+        pred_obj = _to_predicted_object(info, cur_scores, cur_trajs, score_threshold)
         output.objects.append(pred_obj)
 
     return output
@@ -43,6 +45,7 @@ def _to_predicted_object(
     info: OriginalInfo,
     pred_scores: NDArray,
     pred_trajs: NDArray,
+    score_threshold: float,
 ) -> PredictedObject:
     """Convert prediction of a single object to PredictedObject msg.
 
@@ -50,6 +53,7 @@ def _to_predicted_object(
         info (ObjectInfo): Object original info.
         pred_scores (NDArray): Predicted score in the shape of (M,).
         pred_trajs (NDArray): Predicted trajectory in the shape of (M, T, 4).
+        score_threshold (float): Threshold value of score.
 
     Returns:
         PredictedObject: Instanced msg.
@@ -69,6 +73,8 @@ def _to_predicted_object(
 
     # convert each mode
     for cur_score, cur_traj in zip(pred_scores, pred_trajs, strict=True):
+        if cur_score < score_threshold:
+            continue
         cur_mode_path = _to_predicted_path(info, cur_score, cur_traj)
         output.kinematics.predicted_paths.append(cur_mode_path)
 

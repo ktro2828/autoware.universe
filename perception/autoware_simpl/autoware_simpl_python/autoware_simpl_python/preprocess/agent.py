@@ -70,17 +70,21 @@ def _transform_agent_coords(
         AgentTrajectory: Transformed agent past trajectory.
     """
     # 1. Transform from world coords to current ego coords
+    # NOTE: maybe not need to transform to current ego
     agent.xy -= current_ego.xy
     agent.xy = rotate_along_z(agent.xy, current_ego.yaw)
     agent.yaw -= current_ego.yaw
+    agent.vxy = rotate_along_z(agent.vxy, current_ego.yaw)
 
+    # 2. Transform from ego coords to current agent coords
+    agent.xy -= agent.xy[:, -1, :][:, None, :].copy()
+    agent.xy = rotate_along_z(agent.xy, agent.yaw[:, -1])
+    agent.yaw -= agent.yaw[:, -1][:, None]
+    agent.vxy = rotate_along_z(agent.vxy, agent.yaw[:, -1])
+
+    # for RPE
     agent_ctr: NDArray = agent.xy[:, -1].copy()  # (N, 2)
     ego2agent_yaw: NDArray = agent.yaw[:, -1].copy()
     agent_vec: NDArray = np.stack((np.cos(ego2agent_yaw), np.sin(ego2agent_yaw)), axis=-1)  # (N, 2)
-
-    # 2. Transform from ego coords to current agent coords
-    agent.xy -= agent.xy[:, -1, :][:, None, :]
-    agent.xy = rotate_along_z(agent.xy, agent.yaw[:, -1])
-    agent.yaw -= agent.yaw[:, -1][:, None]
 
     return agent, agent_ctr, agent_vec

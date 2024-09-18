@@ -1,7 +1,8 @@
 /**:
   ros__parameters:
-    num_timestamp: 48
-    timestamp_threshold: 2000 # [ms]
+    num_timestamp: 48 # the number of past frames
+    timestamp_threshold: 1500 # [ms]
+    score_threshold: 0.2 # threshold of predicted score
     labels: ["VEHICLE", "PEDESTRIAN", "CYCLIST"]
     # labels: ["VEHICLE", "PEDESTRIAN", "MOTORCYCLIST", "CYCLIST", "BUS"]
     model_path: "$(var data_path)/simpl_47x108.pth"

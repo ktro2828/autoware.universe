@@ -91,6 +91,11 @@ class SimplNode(Node):
             .get_parameter_value()
             .double_value
         )
+        self._score_threshold = (
+            self.declare_parameter("score_threshold", descriptor=descriptor)
+            .get_parameter_value()
+            .double_value
+        )
         lanelet_file = (
             self.declare_parameter("lanelet_file", descriptor=descriptor)
             .get_parameter_value()
@@ -149,6 +154,7 @@ class SimplNode(Node):
         current_ego = self._get_current_ego(msg.header)
 
         if current_ego is None:
+            self.get_logger().warn("No ego found.")
             return
 
         # remove ancient agent history
@@ -157,6 +163,10 @@ class SimplNode(Node):
 
         # update agent history
         states, infos = from_tracked_objects(msg)
+        if len(states) == 0:  # TODO: publish empty msg
+            self.get_logger().warn("No agent found.")
+            return
+
         self._history.update(states, infos)
 
         # inference
@@ -174,7 +184,7 @@ class SimplNode(Node):
                     inputs.rpe,
                     inputs.rpe_mask,
                 )
-        pred_scores, pred_trajs = self._postprocess(pred_scores, pred_trajs, top_k=3)
+        pred_scores, pred_trajs = self._postprocess(pred_scores, pred_trajs)
 
         # TODO(ktro2828): guarantee the order of agent info and history is same.
         infos = sort_object_infos(self._history.infos, inputs.uuids)
@@ -185,6 +195,7 @@ class SimplNode(Node):
             infos=infos,
             pred_scores=pred_scores,
             pred_trajs=pred_trajs,
+            score_threshold=self._score_threshold,
         )
         self._object_pub.publish(pred_objs)
 
@@ -243,7 +254,6 @@ class SimplNode(Node):
         self,
         pred_scores: NDArray | torch.Tensor,
         pred_trajs: NDArray | torch.Tensor,
-        top_k: int | None = None,
     ) -> tuple[NDArray, NDArray]:
         """Run postprocess.
 
@@ -252,8 +262,6 @@ class SimplNode(Node):
                 (N, M).
             pred_trajs (NDArray | torch.Tensor): Predicted trajectories in the shape of
                 (N, M, T, 4).
-            top_k (int | None): The number of top K modes to be extracted. If None, all
-                modes will be output.
 
         Returns:
             tuple[NDArray, NDArray]: Transformed and sorted prediction.
@@ -274,15 +282,27 @@ class SimplNode(Node):
         pred_trajs[..., :2] += current_agent.xy[:, None, None, :]
 
         # sort by score
-        pred_scores = np.clip(pred_scores, a_min=0.0, a_max=1.0)
+        pred_scores = softmax(pred_scores, axis=1)
         sort_indices = np.argsort(-pred_scores, axis=1)
         pred_scores = np.take_along_axis(pred_scores, sort_indices, axis=1)
         pred_trajs = np.take_along_axis(pred_trajs, sort_indices[..., None, None], axis=1)
 
-        pred_scores = pred_scores[:, :top_k]
-        pred_trajs = pred_trajs[:, :top_k]
-
         return pred_scores, pred_trajs
+
+
+def softmax(x: NDArray, axis: int) -> NDArray:
+    """Apply softmax.
+
+    Args:
+        x (NDArray): Input array.
+        axis (int): Axis to apply softmax.
+
+    Returns:
+        NDArray: Softmax result.
+    """
+    x -= x.max(axis=axis, keepdims=True)
+    x_exp = np.exp(x)
+    return x_exp / x_exp.sum(axis=axis, keepdims=True)
 
 
 def main(args=None) -> None:
