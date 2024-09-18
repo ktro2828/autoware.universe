@@ -1,7 +1,7 @@
 encoder:
   actor_net:
-    in_channels: 12
-    # in_channels: 14
+    in_channels: 10
+    # in_channels: 12
     hidden_size: &D_ACTOR 128
     fpn_size: 4
   lane_net:

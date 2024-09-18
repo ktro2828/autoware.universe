@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Sequence
 
 from autoware_simpl_python.dataclass import AgentState
@@ -33,7 +34,7 @@ def embed_agent(
     dxy = np.zeros_like(agent.xy)
     dxy[:, 1:] = agent.xy[:, 1:] - agent.xy[:, :-1]
 
-    onehot_dim = len(target_label_ids) + 2
+    onehot_dim = len(target_label_ids)
     type_onehot = np.zeros((num_agent, num_time, onehot_dim))
     for i, label_id in enumerate(target_label_ids):
         type_onehot[agent.label_ids == label_id, :, i] = 1
@@ -69,22 +70,21 @@ def _transform_agent_coords(
     Returns:
         AgentTrajectory: Transformed agent past trajectory.
     """
-    # 1. Transform from world coords to current ego coords
-    # NOTE: maybe not need to transform to current ego
-    agent.xy -= current_ego.xy
-    agent.xy = rotate_along_z(agent.xy, current_ego.yaw)
-    agent.yaw -= current_ego.yaw
-    agent.vxy = rotate_along_z(agent.vxy, current_ego.yaw)
+    # For RPE
+    agent_rpe = deepcopy(agent)
+    agent_rpe.xy -= current_ego.xy
+    agent_rpe.xy = rotate_along_z(agent_rpe.xy, current_ego.yaw)
+    agent_rpe.yaw -= current_ego.yaw
+    agent_ctr: NDArray = agent_rpe.xy[:, -1]  # (N, 2)
+    ego2agent_yaw: NDArray = agent_rpe.yaw[:, -1]
+    agent_vec: NDArray = np.stack(
+        (np.cos(ego2agent_yaw), np.sin(ego2agent_yaw)), axis=-1
+    )  # (N, 2)
 
-    # 2. Transform from ego coords to current agent coords
-    agent.xy -= agent.xy[:, -1, :][:, None, :].copy()
+    # Transform from world coords to current agent coords
+    agent.xy -= agent.xy[:, -1, :][:, None, :]
     agent.xy = rotate_along_z(agent.xy, agent.yaw[:, -1])
     agent.yaw -= agent.yaw[:, -1][:, None]
     agent.vxy = rotate_along_z(agent.vxy, agent.yaw[:, -1])
-
-    # for RPE
-    agent_ctr: NDArray = agent.xy[:, -1].copy()  # (N, 2)
-    ego2agent_yaw: NDArray = agent.yaw[:, -1].copy()
-    agent_vec: NDArray = np.stack((np.cos(ego2agent_yaw), np.sin(ego2agent_yaw)), axis=-1)  # (N, 2)
 
     return agent, agent_ctr, agent_vec
