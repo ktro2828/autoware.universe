@@ -27,6 +27,7 @@ setup(
     entry_points={
         "console_scripts": [
             f"{package_name}_node = scripts.simpl_node:main",
+            f"{package_name}_ego_node = scripts.simpl_ego_node:main",
         ],
     },
 )

@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 import os.path as osp
 
 from autoware_perception_msgs.msg import ObjectClassification
@@ -37,26 +36,10 @@ from tf2_ros import TransformException
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 import torch
-from typing_extensions import Self
 import yaml
 
-
-@dataclass
-class ModelInput:
-    uuids: list[str]
-    actor: NDArray
-    lane: NDArray
-    rpe: NDArray
-    rpe_mask: NDArray | None = None
-
-    def cuda(self, device: int | torch.device | None = None) -> Self:
-        self.actor = torch.from_numpy(self.actor).cuda(device)
-        self.lane = torch.from_numpy(self.lane).cuda(device)
-        self.rpe = torch.from_numpy(self.rpe).cuda(device)
-        if self.rpe_mask is not None:
-            self.rpe_mask = torch.from_numpy(self.rpe_mask).cuda(device)
-
-        return self
+from .node_utils import ModelInput
+from .node_utils import softmax
 
 
 class SimplNode(Node):
@@ -288,21 +271,6 @@ class SimplNode(Node):
         pred_trajs = np.take_along_axis(pred_trajs, sort_indices[..., None, None], axis=1)
 
         return pred_scores, pred_trajs
-
-
-def softmax(x: NDArray, axis: int) -> NDArray:
-    """Apply softmax.
-
-    Args:
-        x (NDArray): Input array.
-        axis (int): Axis to apply softmax.
-
-    Returns:
-        NDArray: Softmax result.
-    """
-    x -= x.max(axis=axis, keepdims=True)
-    x_exp = np.exp(x)
-    return x_exp / x_exp.sum(axis=axis, keepdims=True)
 
 
 def main(args=None) -> None:

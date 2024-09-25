@@ -29,13 +29,22 @@ class AgentHistory:
             states (Sequence[AgentState]): Sequence of AgentStates.
         """
         for state, info in zip(states, infos, strict=True):
-            uuid = state.uuid
-            if uuid not in self.histories:
-                self.histories[uuid] = deque(
-                    [AgentState(uuid)] * self.max_length,
-                    maxlen=self.max_length,
-                )
-            self.histories[uuid].append(state)
+            self.update_state(state, info)
+
+    def update_state(self, state: AgentState, info: OriginalInfo | None = None) -> None:
+        """Update history state.
+
+        Args:
+            state (AgentState): Agent state.
+        """
+        uuid = state.uuid
+        if uuid not in self.histories:
+            self.histories[uuid] = deque(
+                [AgentState(uuid)] * self.max_length,
+                maxlen=self.max_length,
+            )
+        self.histories[uuid].append(state)
+        if info is not None:
             self.infos[uuid] = info
 
     def remove_invalid(self, current_timestamp: float, threshold: float) -> None:
@@ -53,7 +62,8 @@ class AgentHistory:
                 latest.timestamp, current_timestamp, threshold
             ):
                 del new_histories[uuid]
-                del new_infos[uuid]
+                if uuid in new_infos:
+                    del new_infos[uuid]
 
         self.histories = new_histories
         self.infos = new_infos

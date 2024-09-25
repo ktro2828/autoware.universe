@@ -1,14 +1,10 @@
-from dataclasses import dataclass
+import hashlib
 import os.path as osp
 
-from autoware_perception_msgs.msg import ObjectClassification
 from autoware_perception_msgs.msg import PredictedObjects
-from autoware_perception_msgs.msg import TrackedObjects
 from autoware_simpl_python.checkpoint import load_checkpoint
 from autoware_simpl_python.conversion import convert_lanelet
-from autoware_simpl_python.conversion import convert_transform_stamped
-from autoware_simpl_python.conversion import from_tracked_objects
-from autoware_simpl_python.conversion import sort_object_infos
+from autoware_simpl_python.conversion import from_odometry
 from autoware_simpl_python.conversion import timestamp2ms
 from autoware_simpl_python.conversion import to_predicted_objects
 from autoware_simpl_python.dataclass import AgentHistory
@@ -33,52 +29,34 @@ import rclpy.parameter
 from rclpy.qos import QoSHistoryPolicy
 from rclpy.qos import QoSProfile
 from rclpy.qos import QoSReliabilityPolicy
-from std_msgs.msg import Header
-from tf2_ros import TransformException
-from tf2_ros.buffer import Buffer
-from tf2_ros.transform_listener import TransformListener
 import torch
-from typing_extensions import Self
 import yaml
 
-
-@dataclass
-class ModelInput:
-    uuids: list[str]
-    actor: NDArray
-    lane: NDArray
-    rpe: NDArray
-    rpe_mask: NDArray | None = None
-
-    def cuda(self, device: int | torch.device | None = None) -> Self:
-        self.actor = torch.from_numpy(self.actor).cuda(device)
-        self.lane = torch.from_numpy(self.lane).cuda(device)
-        self.rpe = torch.from_numpy(self.rpe).cuda(device)
-        if self.rpe_mask is not None:
-            self.rpe_mask = torch.from_numpy(self.rpe_mask).cuda(device)
-
-        return self
+from .node_utils import ModelInput
+from .node_utils import softmax
 
 
-class SimplNode(Node):
+class SimplEgoNode(Node):
+    """A ROS 2 node to predict EGO trajectory."""
+
     def __init__(self) -> None:
-        super().__init__("simpl_python_node")
+        super().__init__("simpl_python_ego_node")
 
         qos_profile = QoSProfile(
-            reliability=QoSReliabilityPolicy.BEST_EFFORT,
+            reliability=QoSReliabilityPolicy.RELIABLE,
             history=QoSHistoryPolicy.KEEP_LAST,
             depth=10,
         )
         # subscribers
-        self._object_sub = self.create_subscription(
-            TrackedObjects,
-            "~/input/objects",
+        self._subscription = self.create_subscription(
+            Odometry,
+            "~/input/ego",
             self._callback,
             qos_profile,
         )
 
         # publisher
-        self._object_pub = self.create_publisher(PredictedObjects, "~/output/objects", qos_profile)
+        self._publisher = self.create_publisher(PredictedObjects, "~/output/objects", qos_profile)
 
         # ROS parameters
         descriptor = ParameterDescriptor(dynamic_typing=True)
@@ -122,6 +100,8 @@ class SimplNode(Node):
         self._lane_segments: list[LaneSegment] = convert_lanelet(lanelet_file)
         self._history = AgentHistory(max_length=num_timestamp)
 
+        self._ego_uuid = hashlib.shake_256("EGO".encode()).hexdigest(8)
+
         self._label_ids = [AgentLabel.from_str(label).value for label in labels]
 
         # onnx inference
@@ -148,31 +128,24 @@ class SimplNode(Node):
             self.get_logger().info("Model has been built successfully and exit.")
             exit(0)
 
-        self._tf_buffer = Buffer()
-        self._tf_listener = TransformListener(self._tf_buffer, self)
-
-    def _callback(self, msg: TrackedObjects) -> None:
-        current_ego = self._get_current_ego(msg.header)
-
-        if current_ego is None:
-            self.get_logger().warn("No ego found.")
-            return
-
-        # remove ancient agent history
+    def _callback(self, msg: Odometry) -> None:
+        # remove invalid ancient agent history
         timestamp = timestamp2ms(msg.header)
         self._history.remove_invalid(timestamp, self._timestamp_threshold)
 
         # update agent history
-        states, infos = from_tracked_objects(msg)
-        if len(states) == 0:  # TODO: publish empty msg
-            self.get_logger().warn("No agent found.")
-            return
+        current_ego, info = from_odometry(
+            msg,
+            uuid=self._ego_uuid,
+            label_id=AgentLabel.VEHICLE,
+            size=(4.0, 2.0, 1.0),  # size is unused dummy
+        )
+        self._history.update_state(current_ego, info)
 
-        self._history.update(states, infos)
+        # pre-process
+        inputs = self._preprocess(self._history, current_ego, self._lane_segments)
 
         # inference
-        inputs = self._preprocess(self._history, current_ego, self._lane_segments)
-        # self.get_logger().info(f"{inputs.actor[0]=}")
         if self._is_onnx:
             inputs = {name: getattr(inputs, name) for name in self._input_names}
             pred_scores, pred_trajs = self._session.run(self._output_names, inputs)
@@ -185,50 +158,18 @@ class SimplNode(Node):
                     inputs.rpe,
                     inputs.rpe_mask,
                 )
+        # post-process
         pred_scores, pred_trajs = self._postprocess(pred_scores, pred_trajs)
-
-        # TODO(ktro2828): guarantee the order of agent info and history is same.
-        infos = sort_object_infos(self._history.infos, inputs.uuids)
 
         # convert to ROS msg
         pred_objs = to_predicted_objects(
             header=msg.header,
-            infos=infos,
+            infos=[info],
             pred_scores=pred_scores,
             pred_trajs=pred_trajs,
             score_threshold=self._score_threshold,
         )
-        self._object_pub.publish(pred_objs)
-
-    def _on_timer(self, msg: Odometry) -> None:
-        pass
-
-    def _get_current_ego(self, header: Header) -> AgentState | None:
-        """Return the current ego state. If failed to listen to transform, returns None.
-
-        Args:
-            header (Header): Current message header.
-
-        Returns:
-            AgentState | None: Returns AgentState if succeeded to listen transform.
-        """
-        to_frame = "map"
-        from_frame = "base_link"
-
-        # TODO(ktro2828): update values
-        uuid = "Ego"
-        label_id = ObjectClassification.CAR
-        size = np.array((0, 0, 0))
-        vxy = np.array((0.0, 0.0))
-
-        try:
-            tf_stamped = self._tf_buffer.lookup_transform(
-                to_frame, from_frame, header.stamp, rclpy.duration.Duration(seconds=0.1)
-            )
-            return convert_transform_stamped(tf_stamped, uuid, label_id, size, vxy)
-        except TransformException as ex:
-            self.get_logger().warn(f"Could not transform {to_frame} to {from_frame}: {ex}")
-            return None
+        self._publisher.publish(pred_objs)
 
     def _preprocess(
         self,
@@ -239,7 +180,7 @@ class SimplNode(Node):
         """Run preprocess.
 
         Args:
-            history (AgentHistory): Agent history.
+            history (AgentHistory): Ego history.
             current_ego (AgentState): Current ego state.
             lane_segments (list[LaneSegments]): Lane segments.
 
@@ -294,25 +235,10 @@ class SimplNode(Node):
         return pred_scores, pred_trajs
 
 
-def softmax(x: NDArray, axis: int) -> NDArray:
-    """Apply softmax.
-
-    Args:
-        x (NDArray): Input array.
-        axis (int): Axis to apply softmax.
-
-    Returns:
-        NDArray: Softmax result.
-    """
-    x -= x.max(axis=axis, keepdims=True)
-    x_exp = np.exp(x)
-    return x_exp / x_exp.sum(axis=axis, keepdims=True)
-
-
 def main(args=None) -> None:
     rclpy.init(args=args)
 
-    node = SimplNode()
+    node = SimplEgoNode()
     executor = MultiThreadedExecutor()
     try:
         rclpy.spin(node, executor)

@@ -1,4 +1,5 @@
 from autoware_simpl_python.dataclass import AgentState
+from autoware_simpl_python.dataclass import OriginalInfo
 from geometry_msgs.msg import TransformStamped
 from nav_msgs.msg import Odometry
 import numpy as np
@@ -7,15 +8,15 @@ from numpy.typing import NDArray
 from .misc import timestamp2ms
 from .misc import yaw_from_quaternion
 
-__all__ = ("convert_odometry", "convert_transform_stamped")
+__all__ = ("from_odometry", "convert_transform_stamped")
 
 
-def convert_odometry(
+def from_odometry(
     msg: Odometry,
     uuid: str,
     label_id: int,
     size: NDArray,
-) -> AgentState:
+) -> tuple[AgentState, OriginalInfo]:
     """Convert odometry msg to AgentState.
 
     Args:
@@ -25,7 +26,7 @@ def convert_odometry(
         size (NDArray): Object size in the order of (length, width, height).
 
     Returns:
-        AgentState: Instanced AgentState.
+        tuple[AgentState, OriginalInfo]: Instanced AgentState.
     """
     timestamp = timestamp2ms(msg.header)
     pose = msg.pose.pose
@@ -36,7 +37,7 @@ def convert_odometry(
     twist = msg.twist.twist
     vxy = np.array((twist.linear.x, twist.linear.y))
 
-    return AgentState(
+    state = AgentState(
         uuid=uuid,
         timestamp=timestamp,
         label_id=label_id,
@@ -46,6 +47,10 @@ def convert_odometry(
         vxy=vxy,
         is_valid=True,
     )
+
+    info = OriginalInfo.from_odometry(msg, uuid=uuid, dimensions=size)
+
+    return state, info
 
 
 def convert_transform_stamped(
