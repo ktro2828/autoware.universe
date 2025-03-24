@@ -88,6 +88,7 @@ ament_auto_add_library(pointcloud_preprocessor_filter SHARED
   src/distortion_corrector/distortion_corrector_node.cpp
   src/blockage_diag/blockage_diag_node.cpp
   src/polygon_remover/polygon_remover.cpp
+  src/route_filter/route_filter_node.cpp
   src/vector_map_filter/vector_map_inside_area_filter_node.cpp
   src/utility/geometry.cpp
 )
@@ -200,6 +201,11 @@ rclcpp_components_register_node(pointcloud_preprocessor_filter
 
 set(CGAL_DO_NOT_WARN_ABOUT_CMAKE_BUILD_TYPE TRUE)
 target_link_libraries(polygon_remover_node gmp CGAL CGAL::CGAL CGAL::CGAL_Core)
+
+# ========== RouteFilter ==========
+rclcpp_components_register_node(pointcloud_preprocessor_filter
+  PLUGIN "autoware::pointcloud_preprocessor::RouteFilterComponent"
+  EXECUTABLE route_filter_node)
 
 # ========== Vector Map Inside Area Filter ===========
 rclcpp_components_register_node(pointcloud_preprocessor_filter
