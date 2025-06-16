@@ -6,10 +6,11 @@
       precision: fp32
     preprocess:
       labels: [VEHICLE, PEDESTRIAN, MOTORCYCLIST, CYCLIST, LARGE_VEHICLE]
+      max_num_target: 15
       max_num_agent: 50
-      num_past: 8
-      max_num_polyline: 300
-      max_num_point: 10
+      num_past: 11
+      max_num_polyline: 768
+      max_num_point: 20
       polyline_range_distance: 150.0
       polyline_break_distance: 5.0
     postprocess:

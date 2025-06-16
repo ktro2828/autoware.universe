@@ -157,9 +157,10 @@ public:
    *
    * @param to_x X position.
    * @param to_y Y position.
+   * @param to_z Z position.
    * @param to_yaw Yaw angle [rad].
    */
-  Polyline transform(double to_x, double to_y, double to_yaw) const;
+  Polyline transform(double to_x, double to_y, double to_z, double to_yaw) const;
 
   /**
    * @brief Transfor waypoints from map to input state coordinate frame.

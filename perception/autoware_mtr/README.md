@@ -67,7 +67,7 @@ colcon test --event-handlers console_cohesion+ --packages-select autoware_mtr
 
 ### Number of predicted agents
 
-We have not supported the dynamic shape inference yet. Therefore, the number of predicted agents must be fixed as `preprocess.max_num_agent` ($N$).
+We have not supported the dynamic shape inference yet. Therefore, the number of predicted agents must be fixed as `preprocess.max_num_target` ($B$) and `preprocess.max_num_agent` ($N$).
 This value is determined when exporting ONNX.
 
 Note that the following parameters are also determined when exporting ONNX:

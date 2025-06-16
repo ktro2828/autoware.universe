@@ -17,7 +17,6 @@
 #include "autoware/mtr/archetype/agent.hpp"
 #include "autoware/mtr/archetype/map.hpp"
 #include "autoware/mtr/conversion/tracked_object.hpp"
-#include "autoware/mtr/debug/marker.hpp"
 #include "autoware/mtr/processing/preprocessor.hpp"
 
 #include <autoware_lanelet2_extension/utility/message_conversion.hpp>
@@ -26,8 +25,10 @@
 #include <glog/logging.h>
 #include <lanelet2_core/LaneletMap.h>
 
+#include <cstddef>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -63,6 +64,7 @@ MTRNode::MTRNode(const rclcpp::NodeOptions & options) : rclcpp::Node("mtr", opti
     // Pre-processor
     const auto label_names = declare_parameter<std::vector<std::string>>("preprocess.labels");
     const auto label_ids = archetype::to_label_ids(label_names);
+    const auto max_num_target = declare_parameter<int>("preprocess.max_num_target");
     const auto max_num_agent = declare_parameter<int>("preprocess.max_num_agent");
     num_past_ = declare_parameter<int>("preprocess.num_past");
     const auto max_num_polyline = declare_parameter<int>("preprocess.max_num_polyline");
@@ -73,8 +75,10 @@ MTRNode::MTRNode(const rclcpp::NodeOptions & options) : rclcpp::Node("mtr", opti
       declare_parameter<double>("preprocess.polyline_break_distance");
 
     preprocessor_ = std::make_unique<processing::PreProcessor>(
-      label_ids, max_num_agent, num_past_, max_num_polyline, max_num_point, polyline_range_distance,
-      polyline_break_distance);
+      label_ids, max_num_target, max_num_agent, num_past_, max_num_polyline, max_num_point,
+      polyline_range_distance, polyline_break_distance);
+
+    timestamp_buffer_ = std::make_unique<archetype::FixedQueue<double>>(num_past_);
   }
 
   {
@@ -109,28 +113,18 @@ MTRNode::MTRNode(const rclcpp::NodeOptions & options) : rclcpp::Node("mtr", opti
     processing_time_publisher_ =
       std::make_unique<autoware_utils_debug::DebugPublisher>(this, get_name());
   }
-
-  {
-    // Debug marker publisher
-    history_marker_publisher_ =
-      this->create_publisher<MarkerArray>("~/debug/histories", rclcpp::QoS{1});
-    polyline_marker_publisher_ =
-      this->create_publisher<MarkerArray>("~/debug/map_points", rclcpp::QoS{1});
-    processed_map_marker_publisher_ =
-      this->create_publisher<MarkerArray>("~/debug/processed_map", rclcpp::QoS{1});
-  }
 }
 
 void MTRNode::callback(const TrackedObjects::ConstSharedPtr objects_msg)
 {
   stopwatch_ptr_->toc("processing_time", true);
 
-  const auto current_ego_opt = subscribe_ego();
-  if (!current_ego_opt) {
-    RCLCPP_WARN(get_logger(), "Failed to subscribe ego vehicle state.");
-    return;
+  // push back the current timestamp and convert timestamps to relative time
+  timestamp_buffer_->push_back(rclcpp::Time(objects_msg->header.stamp).seconds());
+  std::vector<double> timestamps(timestamp_buffer_->size());
+  for (size_t i = 0; i < timestamp_buffer_->size(); ++i) {
+    timestamps[i] = timestamp_buffer_->at(i) - timestamp_buffer_->front();
   }
-  const auto & current_ego = current_ego_opt.value();
 
   const auto polylines_opt = lanelet_converter_ptr_->polylines();
   if (!polylines_opt) {
@@ -139,17 +133,21 @@ void MTRNode::callback(const TrackedObjects::ConstSharedPtr objects_msg)
   }
   const auto & polylines = polylines_opt.value();
 
-  const auto histories = update_history(objects_msg);
+  auto result = update_history(objects_msg);
+  if (!result) {
+    RCLCPP_WARN(get_logger(), "Failed to update history.");
+    return;
+  }
+  const auto [ego_index, histories] = result.value();
 
-  const auto [agent_metadata, map_metadata, rpe_tensor] =
-    preprocessor_->process(histories, polylines, current_ego);
+  const auto [agent_tensor, map_tensor] =
+    preprocessor_->process(timestamps, histories, polylines, ego_index);
 
   try {
-    const auto [scores, trajectories] =
-      detector_->do_inference(agent_metadata.tensor, map_metadata.tensor, rpe_tensor).unwrap();
+    const auto [scores, trajectories] = detector_->do_inference(agent_tensor, map_tensor).unwrap();
 
     const auto predicted_objects = postprocessor_->process(
-      scores, trajectories, agent_metadata.agent_ids, objects_msg->header, tracked_object_map_);
+      scores, trajectories, agent_tensor.target_ids, objects_msg->header, tracked_object_map_);
 
     objects_publisher_->publish(predicted_objects);
   } catch (const archetype::MTRException & e) {
@@ -165,20 +163,6 @@ void MTRNode::callback(const TrackedObjects::ConstSharedPtr objects_msg)
       "debug/cyclic_time_ms", cyclic_time_ms);
     processing_time_publisher_->publish<autoware_internal_debug_msgs::msg::Float64Stamped>(
       "debug/processing_time_ms", processing_time_ms);
-  }
-
-  {
-    // debug marker
-    const auto history_marker_array =
-      debug::create_history_marker_array(history_map_, objects_msg->header);
-    const auto polyline_marker_array =
-      debug::create_polyline_marker_array(polylines, objects_msg->header);
-    const auto processed_map_marker_array = debug::create_processed_map_marker_array(
-      map_metadata.tensor.polylines, map_metadata.centers, map_metadata.vectors,
-      objects_msg->header);
-    history_marker_publisher_->publish(history_marker_array);
-    polyline_marker_publisher_->publish(polyline_marker_array);
-    processed_map_marker_publisher_->publish(processed_map_marker_array);
   }
 }
 
@@ -199,16 +183,22 @@ std::optional<archetype::AgentState> MTRNode::subscribe_ego()
   return conversion::to_agent_state(*odometry_msg);
 }
 
-std::vector<archetype::AgentHistory> MTRNode::update_history(
+std::optional<std::pair<size_t, std::vector<archetype::AgentHistory>>> MTRNode::update_history(
   const TrackedObjects::ConstSharedPtr objects_msg)
 {
   std::vector<archetype::AgentHistory> histories;
   if (!objects_msg) {
-    return histories;
+    return std::nullopt;
   }
 
-  std::unordered_set<std::string> observed_ids;
+  // get current ego state
+  const auto current_ego_opt = subscribe_ego();
+  if (!current_ego_opt) {
+    return std::nullopt;
+  }
+  const auto & current_ego = current_ego_opt.value();
 
+  std::unordered_set<std::string> observed_ids;
   // update agent histories
   for (const auto & object : objects_msg->objects) {
     const auto agent_id = autoware_utils::to_hex_string(object.object_id);
@@ -226,18 +216,27 @@ std::vector<archetype::AgentHistory> MTRNode::update_history(
     tracked_object_map_.insert_or_assign(agent_id, object);
   }
 
+  // update ego history
+  observed_ids.insert(ego_id);
+  auto [ego_it, ego_init] = history_map_.try_emplace(ego_id, ego_id, num_past_, current_ego);
+  if (!ego_init) {
+    ego_it->second.update(current_ego);
+  }
+  // add ego history to histories vector
+  histories.emplace_back(ego_it->second);
+
   // remove histories that are not observed at the current
   for (auto itr = history_map_.begin(); itr != history_map_.end();) {
     const auto & agent_id = itr->first;
     // update unobserved history with empty
-    if (std::find(observed_ids.begin(), observed_ids.end(), agent_id) == observed_ids.end()) {
+    if (observed_ids.count(agent_id) == 0) {
       tracked_object_map_.erase(agent_id);
       itr = history_map_.erase(itr);
     } else {
       ++itr;
     }
   }
-  return histories;
+  return {std::make_pair(histories.size() - 1, histories)};
 }
 }  // namespace autoware::mtr
 

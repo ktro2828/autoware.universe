@@ -72,11 +72,23 @@ std::pair<double, double> local_to_global(const geometry_msgs::msg::Vector3 & ve
 archetype::AgentState to_agent_state(const autoware_perception_msgs::msg::TrackedObject & object)
 {
   const auto & pose = object.kinematics.pose_with_covariance.pose;
+  const auto & dimensions = object.shape.dimensions;
   const double yaw = autoware_utils_geometry::get_rpy(pose.orientation).z;
   const auto [vx, vy] = local_to_global(object.kinematics.twist_with_covariance.twist.linear, yaw);
   const auto label = to_agent_label(object);
 
-  return {pose.position.x, pose.position.y, pose.position.z, yaw, vx, vy, label, true};
+  return {
+    pose.position.x,
+    pose.position.y,
+    pose.position.z,
+    dimensions.x,
+    dimensions.y,
+    dimensions.z,
+    yaw,
+    vx,
+    vy,
+    label,
+    true};
 }
 
 archetype::AgentState to_agent_state(const nav_msgs::msg::Odometry & odometry)
@@ -85,10 +97,14 @@ archetype::AgentState to_agent_state(const nav_msgs::msg::Odometry & odometry)
   const double yaw = autoware_utils_geometry::get_rpy(pose.orientation).z;
   const auto [vx, vy] = local_to_global(odometry.twist.twist.linear, yaw);
 
+  // TODO(ktro2828): Box size
   return {
     pose.position.x,
     pose.position.y,
     pose.position.z,
+    0.5,
+    0.5,
+    0.5,
     yaw,
     vx,
     vy,

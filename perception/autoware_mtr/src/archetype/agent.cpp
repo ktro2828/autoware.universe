@@ -60,16 +60,15 @@ AgentState AgentState::transform(const AgentState & to_state) const
   const auto t_vx = vx * to_cos + vy * to_sin;
   const auto t_vy = -vx * to_sin + vy * to_cos;
 
-  return {tx, ty, z, t_yaw, t_vx, t_vy, label, is_valid};
+  return {tx, ty, z, length, width, height, t_yaw, t_vx, t_vy, label, is_valid};
 }
 
-AgentHistory AgentHistory::transform_to_current() const
+AgentHistory AgentHistory::transform(const AgentState & state) const
 {
-  const auto & current_state = current();
   AgentHistory output(agent_id, queue_.size());
   for (const auto & state_t : *this) {
     if (state_t.is_valid) {
-      output.update(state_t.transform(current_state));
+      output.update(state_t.transform(state));
     } else {
       output.update({});
     }
@@ -77,20 +76,27 @@ AgentHistory AgentHistory::transform_to_current() const
   return output;
 }
 
-std::vector<AgentHistory> trim_neighbors(
-  const std::vector<AgentHistory> & histories, const AgentState & state_from, size_t top_k)
+std::vector<int> trim_neighbor_indices(
+  const std::vector<AgentHistory> & histories, size_t ego_index, size_t top_k)
 {
-  auto output = histories;
+  std::vector<int> output;
+  for (size_t i = 0; i < histories.size(); ++i) {
+    if (i != ego_index) {
+      output.push_back(static_cast<int>(i));
+    }
+  }
 
-  std::sort(
-    output.begin(), output.end(), [&state_from](const AgentHistory & a, const AgentHistory & b) {
-      return a.distance_from(state_from) < b.distance_from(state_from);
-    });
+  const auto & current_ego = histories.at(ego_index).current();
+
+  std::sort(output.begin(), output.end(), [&histories, &current_ego](size_t i1, size_t i2) {
+    return histories[i1].distance_from(current_ego) < histories[i2].distance_from(current_ego);
+  });
 
   // keep only the top_k closest agents
   if (output.size() > top_k) {
     output.erase(output.begin() + top_k, output.end());
   }
+
   return output;
 }
 }  // namespace autoware::mtr::archetype

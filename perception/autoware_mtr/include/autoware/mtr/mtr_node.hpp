@@ -32,8 +32,6 @@
 #include <autoware_perception_msgs/msg/predicted_objects.hpp>
 #include <autoware_perception_msgs/msg/tracked_objects.hpp>
 #include <nav_msgs/msg/odometry.hpp>
-#include <visualization_msgs/msg/marker.hpp>
-#include <visualization_msgs/msg/marker_array.hpp>
 
 #include <lanelet2_core/Forward.h>
 
@@ -41,6 +39,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace autoware::mtr
@@ -59,8 +58,6 @@ public:
   using Odometry = nav_msgs::msg::Odometry;
   using ObjectClassification = autoware_perception_msgs::msg::ObjectClassification;
   using Shape = autoware_perception_msgs::msg::Shape;
-  using MarkerArray = visualization_msgs::msg::MarkerArray;
-  using Marker = visualization_msgs::msg::Marker;
 
   template <typename T>
   using InterProcessPollingSubscriber = autoware_utils::InterProcessPollingSubscriber<T>;
@@ -71,6 +68,9 @@ public:
    * @param options Node options.
    */
   explicit MTRNode(const rclcpp::NodeOptions & options);
+
+  //!< Ego vehicle ID.
+  std::string ego_id = "EGO";
 
 private:
   /**
@@ -90,19 +90,28 @@ private:
   /**
    * @brief Subscribe the latest ego vehicle state as a `AgentState`.
    *
-   * Note that if it fails to subscribe the ego odometry, returns `std::nullopt`.
+   * @note If it fails to subscribe the ego odometry, returns `std::nullopt`.
+   *
+   * @return Return ego state or `std::nullopt`.
    */
   std::optional<archetype::AgentState> subscribe_ego();
 
   /**
-   * @brief Update history container.
+   * @brief Update history container, and return the ego index and agent histories if successful.
+   *
+   * @note If it fails to subscribe the ego odometry, returns `std::nullopt`.
    *
    * @param objects_msg Tracked objects.
+   * @return Return the index of ego in the histories, and histories. Otherwise `std::nullopt`.
    */
-  std::vector<archetype::AgentHistory> update_history(
+  std::optional<std::pair<size_t, std::vector<archetype::AgentHistory>>> update_history(
     const TrackedObjects::ConstSharedPtr objects_msg);
 
   //////////////////////// member variables ////////////////////////
+
+  //!< timestamp queue for agent history.
+  std::unique_ptr<archetype::FixedQueue<double>> timestamp_buffer_;
+
   //!< Tracked objects subscription.
   rclcpp::Subscription<TrackedObjects>::SharedPtr objects_subscription_;
 
@@ -140,11 +149,6 @@ private:
   //!< Debugger for processing time.
   std::unique_ptr<autoware_utils_system::StopWatch<std::chrono::milliseconds>> stopwatch_ptr_;
   std::unique_ptr<autoware_utils_debug::DebugPublisher> processing_time_publisher_;
-
-  //!< Debugger for marker.
-  rclcpp::Publisher<MarkerArray>::SharedPtr history_marker_publisher_;
-  rclcpp::Publisher<MarkerArray>::SharedPtr polyline_marker_publisher_;
-  rclcpp::Publisher<MarkerArray>::SharedPtr processed_map_marker_publisher_;
 
   //!< Number of past timestamps.
   int num_past_;

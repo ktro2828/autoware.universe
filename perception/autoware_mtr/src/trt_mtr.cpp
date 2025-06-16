@@ -32,7 +32,8 @@ TrtMTR::TrtMTR(const tensorrt_common::TrtCommonConfig & config)
   auto profile_dims = std::make_unique<std::vector<tensorrt_common::ProfileDims>>();
   auto network_io = std::make_unique<std::vector<tensorrt_common::NetworkIO>>();
   {
-    constexpr size_t num_input = 3;   // (agent, map, rpe)
+    constexpr size_t num_input = 8;   // (agent, agent_mask, agent_center,
+                                      // map, map_mask, map_center, target_index, target_type)
     constexpr size_t num_output = 2;  // (score, trajectory)
     // input profiles
     for (size_t i = 0; i < num_input; ++i) {
@@ -60,12 +61,11 @@ TrtMTR::TrtMTR(const tensorrt_common::TrtCommonConfig & config)
 }
 
 archetype::Result<TrtMTR::output_type> TrtMTR::do_inference(
-  const archetype::AgentTensor & agent_tensor, const archetype::MapTensor & map_tensor,
-  const std::vector<float> & rpe_tensor) noexcept
+  const archetype::AgentTensor & agent_tensor, const archetype::MapTensor & map_tensor) noexcept
 {
   // Copy inputs from host to device
   try {
-    init_cuda_ptr(agent_tensor, map_tensor, rpe_tensor);
+    init_cuda_ptr(agent_tensor, map_tensor);
   } catch (const std::runtime_error & e) {
     return archetype::Err<output_type>(archetype::MTRError_t::Cuda, e.what());
   }
@@ -80,10 +80,11 @@ archetype::Result<TrtMTR::output_type> TrtMTR::do_inference(
   out_score_d_ = cuda_utils::make_unique<float[]>(score_size);
   out_trajectory_d_ = cuda_utils::make_unique<float[]>(trajectory_size);
 
-  // Set tensors addresses
+  // TODO(ktro2828): set tensors addresses
   std::vector<void *> tensors{
-    in_agent_d_.get(), in_map_d_.get(), in_rpe_d_.get(), out_score_d_.get(),
-    out_trajectory_d_.get()};
+    in_agent_d_.get(),    in_agent_mask_d_.get(), in_agent_center_d_.get(), in_map_d_.get(),
+    in_map_mask_d_.get(), in_map_center_d_.get(), in_target_index_d_.get(), in_target_type_d_.get(),
+    out_score_d_.get(),   out_trajectory_d_.get()};
   if (!trt_common_->setTensorsAddresses(tensors)) {
     return archetype::Err<output_type>(
       archetype::MTRError_t::TensorRT, "Failed to set tensor addresses");
@@ -112,21 +113,40 @@ archetype::Result<TrtMTR::output_type> TrtMTR::do_inference(
 }
 
 void TrtMTR::init_cuda_ptr(
-  const archetype::AgentTensor & agent_tensor, const archetype::MapTensor & map_tensor,
-  const std::vector<float> & rpe_tensor)
+  const archetype::AgentTensor & agent_tensor, const archetype::MapTensor & map_tensor)
 {
-  in_agent_d_ = cuda_utils::make_unique<float[]>(agent_tensor.size());
-  in_map_d_ = cuda_utils::make_unique<float[]>(map_tensor.size());
-  in_rpe_d_ = cuda_utils::make_unique<float[]>(rpe_tensor.size());
+  in_agent_d_ = cuda_utils::make_unique<float[]>(agent_tensor.in_agent.size());
+  in_agent_mask_d_ = cuda_utils::make_unique<uint8_t[]>(agent_tensor.in_agent_mask.size());
+  in_agent_center_d_ = cuda_utils::make_unique<float[]>(agent_tensor.in_agent_center.size());
+  in_map_d_ = cuda_utils::make_unique<float[]>(map_tensor.in_map.size());
+  in_map_mask_d_ = cuda_utils::make_unique<uint8_t[]>(map_tensor.in_map_mask.size());
+  in_map_center_d_ = cuda_utils::make_unique<float[]>(map_tensor.in_map_center.size());
+  in_target_index_d_ = cuda_utils::make_unique<int[]>(agent_tensor.target_indices.size());
+  in_target_type_d_ = cuda_utils::make_unique<int[]>(agent_tensor.target_labels.size());
 
   CHECK_CUDA_ERROR(cudaMemcpyAsync(
-    in_agent_d_.get(), agent_tensor.data(), sizeof(float) * agent_tensor.size(),
+    in_agent_d_.get(), agent_tensor.in_agent.data(), sizeof(float) * agent_tensor.in_agent.size(),
     cudaMemcpyHostToDevice, stream_));
   CHECK_CUDA_ERROR(cudaMemcpyAsync(
-    in_map_d_.get(), map_tensor.data(), sizeof(float) * map_tensor.size(), cudaMemcpyHostToDevice,
-    stream_));
+    in_agent_mask_d_.get(), agent_tensor.in_agent_mask.data(),
+    sizeof(uint8_t) * agent_tensor.in_agent_mask.size(), cudaMemcpyHostToDevice, stream_));
   CHECK_CUDA_ERROR(cudaMemcpyAsync(
-    in_rpe_d_.get(), rpe_tensor.data(), sizeof(float) * rpe_tensor.size(), cudaMemcpyHostToDevice,
-    stream_));
+    in_agent_center_d_.get(), agent_tensor.in_agent_center.data(),
+    sizeof(float) * agent_tensor.in_agent_center.size(), cudaMemcpyHostToDevice, stream_));
+  CHECK_CUDA_ERROR(cudaMemcpyAsync(
+    in_map_d_.get(), map_tensor.in_map.data(), sizeof(float) * map_tensor.in_map.size(),
+    cudaMemcpyHostToDevice, stream_));
+  CHECK_CUDA_ERROR(cudaMemcpyAsync(
+    in_map_mask_d_.get(), map_tensor.in_map_mask.data(),
+    sizeof(uint8_t) * map_tensor.in_map_mask.size(), cudaMemcpyHostToDevice, stream_));
+  CHECK_CUDA_ERROR(cudaMemcpyAsync(
+    in_map_center_d_.get(), map_tensor.in_map_center.data(),
+    sizeof(float) * map_tensor.in_map_center.size(), cudaMemcpyHostToDevice, stream_));
+  CHECK_CUDA_ERROR(cudaMemcpyAsync(
+    in_target_index_d_.get(), agent_tensor.target_indices.data(),
+    sizeof(int) * agent_tensor.target_indices.size(), cudaMemcpyHostToDevice, stream_));
+  CHECK_CUDA_ERROR(cudaMemcpyAsync(
+    in_target_type_d_.get(), agent_tensor.target_labels.data(),
+    sizeof(int) * agent_tensor.target_labels.size(), cudaMemcpyHostToDevice, stream_));
 }
 }  // namespace autoware::mtr

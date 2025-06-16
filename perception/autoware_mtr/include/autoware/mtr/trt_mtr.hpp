@@ -50,27 +50,29 @@ public:
    *
    * @param agent_tensor Agent tensor.
    * @param map_tensor Map tensor.
-   * @param rpe_tensor RPE tensor.
    * @return archetype::Result<output_type>
    */
   archetype::Result<output_type> do_inference(
-    const archetype::AgentTensor & agent_tensor, const archetype::MapTensor & map_tensor,
-    const std::vector<float> & rpe_tensor) noexcept;
+    const archetype::AgentTensor & agent_tensor, const archetype::MapTensor & map_tensor) noexcept;
 
 private:
   /**
    * @brief Initialize and setup cuda pointers.
    */
   void init_cuda_ptr(
-    const archetype::AgentTensor & agent_tensor, const archetype::MapTensor & map_tensor,
-    const std::vector<float> & rpe_tensor);
+    const archetype::AgentTensor & agent_tensor, const archetype::MapTensor & map_tensor);
 
   std::unique_ptr<tensorrt_common::TrtCommon> trt_common_;  //!< TensorRT common.
   cudaStream_t stream_;                                     //!< CUDA stream.
 
-  cuda_utils::CudaUniquePtr<float[]> in_agent_d_;  //!< Input agent tensor on device.
-  cuda_utils::CudaUniquePtr<float[]> in_map_d_;    //!< Input map tensor on device.
-  cuda_utils::CudaUniquePtr<float[]> in_rpe_d_;    //!< Input RPE tensor on device.
+  cuda_utils::CudaUniquePtr<float[]> in_agent_d_;         //!< Input agent tensor on device.
+  cuda_utils::CudaUniquePtr<uint8_t[]> in_agent_mask_d_;  //!< Input agent mask tensor on device.
+  cuda_utils::CudaUniquePtr<float[]> in_agent_center_d_;  //!< Input agent center tensor on device.
+  cuda_utils::CudaUniquePtr<float[]> in_map_d_;           //!< Input map tensor on device.
+  cuda_utils::CudaUniquePtr<uint8_t[]> in_map_mask_d_;    //!< Input map mask tensor on device.
+  cuda_utils::CudaUniquePtr<float[]> in_map_center_d_;    //!< Input map center tensor on device.
+  cuda_utils::CudaUniquePtr<int[]> in_target_index_d_;  //!< Input target indices tensor on device.
+  cuda_utils::CudaUniquePtr<int[]> in_target_type_d_;   //!< Input target type tensor on device.
 
   cuda_utils::CudaUniquePtr<float[]> out_score_d_;       //!< Output score tensor on device.
   cuda_utils::CudaUniquePtr<float[]> out_trajectory_d_;  //!< Output trajectory tensor on device.

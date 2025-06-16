@@ -30,140 +30,70 @@
 namespace autoware::mtr::processing
 {
 /**
- * @brief 2D point for node center and vector.
- */
-struct NodePoint
-{
-  NodePoint() = default;
-  NodePoint(double _x, double _y) : x(_x), y(_y), norm(std::hypot(_x, _y)) {}
-
-  double x{0.0};
-  double y{0.0};
-  double norm{0.0};
-};
-
-using NodePoints = std::vector<NodePoint>;
-
-/**
- * @brief Abstract base class of input metadata.
- */
-struct AbstractMetadata
-{
-  using size_type = NodePoints::size_type;
-
-  AbstractMetadata(const NodePoints & _centers, const NodePoints & _vectors)
-  : centers(_centers), vectors(_vectors)
-  {
-    if (centers.size() != vectors.size()) {
-      throw archetype::MTRException(
-        archetype::MTRError_t::InvalidValue, "Size of node centers and vectors must be same.");
-    }
-  }
-
-  size_type size() const noexcept { return centers.size(); }
-
-  const NodePoints centers;  //!< Node centers, (X, 2).
-  const NodePoints vectors;  //!< Node vectors, (X, 2).
-};
-
-/**
- * @brief Agent metadata containing input tensor and node data.
- */
-struct AgentMetadata : public AbstractMetadata
-{
-  AgentMetadata(
-    const archetype::AgentTensor & _tensor, const std::vector<std::string> & _agent_ids,
-    const NodePoints & _centers, const NodePoints & _vectors)
-  : AbstractMetadata(_centers, _vectors), tensor(_tensor), agent_ids(_agent_ids)
-  {
-  }
-  const archetype::AgentTensor tensor;       //!< Input tensor for agent data.
-  const std::vector<std::string> agent_ids;  //!< Agent IDs.
-};
-
-/**
- * @brief Map metadata containing input tensor and node data.
- */
-struct MapMetadata : public AbstractMetadata
-{
-  MapMetadata(
-    const archetype::MapTensor & _tensor, const NodePoints & _centers, const NodePoints & _vectors)
-  : AbstractMetadata(_centers, _vectors), tensor(_tensor)
-  {
-  }
-
-  const archetype::MapTensor tensor;  //!< Input tensor for map data.
-};
-
-/**
  * @brief A class to execute preprocessing.
  */
 class PreProcessor
 {
 public:
-  using RpeTensor = std::vector<float>;
-  using output_type = std::tuple<AgentMetadata, MapMetadata, RpeTensor>;
+  using output_type = std::tuple<archetype::AgentTensor, archetype::MapTensor>;
 
   /**
    * @brief Construct a new Preprocessor object.
    *
    * @param label_ids Vector of predictable label ids.
-   * @param max_num_agent Maximum number of predictable agents.
-   * @param num_past Number of past timestamps.
-   * @param max_num_polyline Maximum number of polylines.
-   * @param max_num_point Maximum number of points in a single polyline.
+   * @param max_num_target Maximum number of predictable agents (B).
+   * @param max_num_agent Maximum number of other agents (N).
+   * @param num_past Number of past timestamps (T).
+   * @param max_num_polyline Maximum number of polylines (K).
+   * @param max_num_point Maximum number of points in a single polyline (P).
    * @param polyline_range_distance Distance threshold from ego to trim polylines [m].
    * @param polyline_break_distance Distance threshold to break two polylines [m].
    */
   PreProcessor(
-    const std::vector<size_t> & label_ids, size_t max_num_agent, size_t num_past,
-    size_t max_num_polyline, size_t max_num_point, double polyline_range_distance,
+    const std::vector<size_t> & label_ids, size_t max_num_target, size_t max_num_agent,
+    size_t num_past, size_t max_num_polyline, size_t max_num_point, double polyline_range_distance,
     double polyline_break_distance);
 
   /**
    * @brief Execute preprocessing.
    *
-   * @param histories Hasmap of histories for each agent ID.
+   * @param timestamps Vector of relative timestamps [sec].
+   * @param histories Vector of histories for each agent.
    * @param polylines Vector of polylines.
-   * @param current_ego Current ego state.
-   * @return output_type Returns `AgentTensor`, `MapTensor` and RPE tensor (`std::vector<float>`).
+   * @param ego_index Ego index in the histories.
+   * @return Returns `archetype::AgentTensor`, `archetype::MapTensor`.
    */
   output_type process(
-    const std::vector<archetype::AgentHistory> & histories,
-    const std::vector<archetype::Polyline> & polylines,
-    const archetype::AgentState & current_ego) const;
+    const std::vector<double> & timestamps, const std::vector<archetype::AgentHistory> & histories,
+    const std::vector<archetype::Polyline> & polylines, size_t ego_index) const;
 
 private:
   /**
    * @brief Execute preprocessing for agent tensor.
    *
-   * @param histories Hasmap of histories for each agent ID.
-   * @param current_ego Current ego state.
+   * @param timestamps Vector of timestamps [sec].
+   * @param histories Vector of histories for each agent.
+   * @param ego_index Ego index in the histories.
    */
-  AgentMetadata process_agent(
-    const std::vector<archetype::AgentHistory> & histories,
-    const archetype::AgentState & current_ego) const;
+  archetype::AgentTensor process_agent(
+    const std::vector<double> & timestamps, const std::vector<archetype::AgentHistory> & histories,
+    size_t ego_index) const;
 
   /**
    * @brief Execute preprocessing for map tensor.
    *
    * @param polylines Vector of polylines.
-   * @param current_ego Current ego state.
+   * @param histories Vector of histories for each agent.
+   * @param target_indices Vector of target indices in the histories.
+   * @param ego_index Ego index in the histories.
    */
-  MapMetadata process_map(
+  archetype::MapTensor process_map(
     const std::vector<archetype::Polyline> & polylines,
-    const archetype::AgentState & current_ego) const;
-
-  /**
-   * @brief Execute preprocessing for RPE tensor (N+K*N+K*D).
-   *
-   * @param agent_metadata Processed agent data containing metadata.
-   * @param current_ego Processed map data containing its metadata.
-   */
-  RpeTensor process_rpe(
-    const AgentMetadata & agent_metadata, const MapMetadata & map_metadata) const;
+    const std::vector<archetype::AgentHistory> & histories, const std::vector<int> & target_indices,
+    size_t ego_index) const;
 
   const std::vector<size_t> label_ids_;   //!< Vector of predictable label ids.
+  const size_t max_num_target_;           //!< Maximum number of predictable agents (B).
   const size_t max_num_agent_;            //!< Maximum number of predictable agents (N).
   const size_t num_past_;                 //!< Number of past timestamps (Tp).
   const size_t max_num_polyline_;         //!< Maximum number of polylines (K).

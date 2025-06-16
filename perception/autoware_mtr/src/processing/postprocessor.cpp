@@ -115,7 +115,7 @@ PostProcessor::output_type PostProcessor::process(
   const std::vector<std::string> & agent_ids, const Header & header,
   const std::unordered_map<std::string, TrackedObject> & tracked_object_map) const
 {
-  constexpr size_t num_attribute = 4;
+  constexpr size_t num_attribute = 7;  // (x, y, ox, oy, oz, vx, vy)
 
   std::vector<PredictedObject> predicted_objects;
   for (size_t n = 0; n < agent_ids.size(); ++n) {
@@ -136,12 +136,12 @@ PostProcessor::output_type PostProcessor::process(
         const auto trajectory_idx =
           (n * num_mode_ * num_future_ + m * num_future_ + t) * num_attribute;
 
-        // (x, y, vx, vy): w.r.t object local
-        const double ox = static_cast<double>(trajectories.at(trajectory_idx));
-        const double oy = static_cast<double>(trajectories.at(trajectory_idx + 1));
+        // (x, y, ox, oy, oz, vx, vy): w.r.t object local
+        const double x = static_cast<double>(trajectories.at(trajectory_idx));
+        const double y = static_cast<double>(trajectories.at(trajectory_idx + 1));
 
         // Transform from current state centric to map coordinate
-        waypoints.emplace_back(local_to_global(ox, oy, tracked_object));
+        waypoints.emplace_back(local_to_global(x, y, tracked_object));
       }
       predicted_object.kinematics.predicted_paths.emplace_back(
         to_predicted_path(score, waypoints, tracked_object));

@@ -56,8 +56,11 @@ public:
    * @brief Execute postprocessing.
    *
    * @param scores Vector of scores [N'xM].
-   * @param trajectories Vector of predicted trajectory attributes [N'xMxTfxDp].
+   * @param trajectories Vector of predicted trajectory attributes [N'xMxTfx7].
    * @param agent_ids Agent IDs [N].
+   * @param header ROS message header.
+   * @param tracked_object_map Hasmap of agent id and tracked object message.
+   * @return Return the predicted objects.
    */
   output_type process(
     const std::vector<float> & scores, const std::vector<float> & trajectories,

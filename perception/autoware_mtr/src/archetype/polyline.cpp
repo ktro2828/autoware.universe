@@ -30,25 +30,28 @@ namespace
  * @param from Source map points.
  * @param to_x X coordinate of the target frame.
  * @param to_y Y coordinate of the target frame.
+ * @param to_z Z coordinate of the target frame.
  * @param to_yaw Yaw angle of the target frame [rad].
  */
-MapPoint transform_point(const archetype::MapPoint & from, double to_x, double to_y, double to_yaw)
+MapPoint transform_point(
+  const archetype::MapPoint & from, double to_x, double to_y, double to_z, double to_yaw)
 {
   double vcos = std::cos(to_yaw);
   double vsin = std::sin(to_yaw);
 
   double x = (from.x - to_x) * vcos + (from.y - to_y) * vsin;
   double y = -(from.x - to_x) * vsin + (from.y - to_y) * vcos;
+  double z = from.z - to_z;
 
-  return {x, y, from.z, from.label};
+  return {x, y, z, from.label};
 }
 }  // namespace
 
-Polyline Polyline::transform(double to_x, double to_y, double to_yaw) const
+Polyline Polyline::transform(double to_x, double to_y, double to_z, double to_yaw) const
 {
   std::vector<MapPoint> transformed;
   for (const auto & point : waypoints_) {
-    transformed.emplace_back(transform_point(point, to_x, to_y, to_yaw));
+    transformed.emplace_back(transform_point(point, to_x, to_y, to_z, to_yaw));
   }
   return Polyline(transformed);
 }
@@ -57,7 +60,8 @@ Polyline Polyline::transform(const AgentState & to_state) const
 {
   std::vector<MapPoint> transformed;
   for (const auto & point : waypoints_) {
-    transformed.emplace_back(transform_point(point, to_state.x, to_state.y, to_state.yaw));
+    transformed.emplace_back(
+      transform_point(point, to_state.x, to_state.y, to_state.z, to_state.yaw));
   }
   return Polyline(transformed);
 }

@@ -41,6 +41,7 @@ enum class AgentLabel {
  * @brief Convert string label names to IDs.
  *
  * @param label_names Label names.
+ * @return Vector of label IDs.
  */
 std::vector<size_t> to_label_ids(const std::vector<std::string> & label_names);
 
@@ -60,6 +61,9 @@ struct AgentState
    * @param x Location x.
    * @param y Location y.
    * @param z Location z.
+   * @param length Box length.
+   * @param width Box width.
+   * @param height Box height.
    * @param yaw Yaw angle [rad].
    * @param vx X-direction velocity [m/s]
    * @param vy Y-direction velocity [m/s].
@@ -67,9 +71,19 @@ struct AgentState
    * @param is_valid Indicates whther the state is valid.
    */
   AgentState(
-    double x, double y, double z, double yaw, double vx, double vy, const AgentLabel & label,
-    bool is_valid)
-  : x(x), y(y), z(z), yaw(yaw), vx(vx), vy(vy), label(label), is_valid(is_valid)
+    double x, double y, double z, double length, double width, double height, double yaw, double vx,
+    double vy, const AgentLabel & label, bool is_valid)
+  : x(x),
+    y(y),
+    z(z),
+    length(length),
+    width(width),
+    height(height),
+    yaw(yaw),
+    vx(vx),
+    vy(vy),
+    label(label),
+    is_valid(is_valid)
   {
   }
 
@@ -98,6 +112,9 @@ struct AgentState
   double x{0.0};                          //!< Center x.
   double y{0.0};                          //!< Center y.
   double z{0.0};                          //!< Center z.
+  double length{0.0};                     //!< Box length.
+  double width{0.0};                      //!< Box width.
+  double height{0.0};                     //!< Box height.
   double yaw{0.0};                        //!< Yaw angle [rad].
   double vx{0.0};                         //!< X-direction velocity [m/s].
   double vy{0.0};                         //!< Y-direction velocity [m/s].
@@ -156,9 +173,9 @@ public:
   double distance_from(const AgentState & other) const { return current().distance_from(other); }
 
   /**
-   * @brief Transform states to current coordinate frame.
+   * @brief Transform states to the specified state coordinate frame.
    */
-  AgentHistory transform_to_current() const;
+  AgentHistory transform(const AgentState & state) const;
 
   /**
    * @brief Return a read/write reference that points to the current state.
@@ -216,14 +233,15 @@ private:
 };
 
 /**
- * @brief Trim top-k nearest neighbor agent histories by comparing the distance from the current
- * states.
+ * @brief Trim neighbor indices to keep only the top-k closest agents.
  *
- * @param histories Source histories.
- * @param state_from Agent state.
- * @param top_k Maximum number of agents to be trimmed.
+ * @param histories Source histories containing agent states.
+ * @param ego_index Index of the ego agent.
+ * @param top_k Number of top closest agents to keep.
+ * @return Vector of indices of the top-k closest agents sorted by distance from ego, excluding the
+ * ego agent.
  */
-std::vector<AgentHistory> trim_neighbors(
-  const std::vector<AgentHistory> & histories, const AgentState & state_from, size_t top_k);
+std::vector<int> trim_neighbor_indices(
+  const std::vector<AgentHistory> & histories, size_t ego_index, size_t top_k);
 }  // namespace autoware::mtr::archetype
 #endif  // AUTOWARE__MTR__ARCHETYPE__AGENT_HPP_

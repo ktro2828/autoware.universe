@@ -96,15 +96,16 @@ struct MapPoint
    *
    * @param other Another point.
    */
-  std::tuple<double, double> diff(const MapPoint & other, bool normalize = true) const
+  std::tuple<double, double, double> diff(const MapPoint & other, bool normalize = true) const
   {
     const double vx = x - other.x;
     const double vy = y - other.y;
+    const double vz = z - other.z;
     if (normalize) {
-      const double norm = std::clamp(std::hypot(vx, vy), 1e-6, 1e9);
-      return std::make_tuple(vx / norm, vy / norm);
+      const double norm = std::clamp(std::hypot(vx, vy, vz), 1e-6, 1e9);
+      return std::make_tuple(vx / norm, vy / norm, vz / norm);
     } else {
-      return {vx, vy};
+      return {vx, vy, vz};
     }
   }
 

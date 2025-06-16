@@ -36,9 +36,15 @@
               "uniqueItems": true,
               "minItems": 1
             },
+            "max_num_target": {
+              "type": "integer",
+              "description": "Maximum number of agents to be predicted ($B$).",
+              "default": 15,
+              "minimum": 1
+            },
             "max_num_agent": {
               "type": "integer",
-              "description": "Maximum number of agents to be predicted ($N$).",
+              "description": "Maximum number of other agents ($N$).",
               "default": 50,
               "minimum": 1
             },
@@ -51,7 +57,7 @@
             "max_num_polyline": {
               "type": "integer",
               "description": "Maximum number of polylines ($K$).",
-              "default": 300,
+              "default": 768,
               "minimum": 1
             },
             "max_num_point": {
