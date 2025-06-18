@@ -38,6 +38,16 @@ rclcpp_components_register_node(
   ${PROJECT_NAME}_exe)
 
 if(BUILD_TESTING)
+  ament_add_ros_isolated_gtest(test_mtr
+    # archetype
+    test/test_agent.cpp
+    test/test_exception.cpp
+    test/test_fixed_queue.cpp
+    test/test_map.cpp
+    test/test_polyline.cpp
+    test/test_result.cpp
+    test/test_tensor.cpp)
+  target_link_libraries(test_mtr ${PROJECT_NAME})
 endif()
 
-ament_auto_package(INSTALL_TO_SHARE launch config data)
+ament_auto_package(INSTALL_TO_SHARE launch config)
