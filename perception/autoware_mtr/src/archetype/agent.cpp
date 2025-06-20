@@ -76,13 +76,13 @@ AgentHistory AgentHistory::transform(const AgentState & state) const
   return output;
 }
 
-std::vector<int> trim_neighbor_indices(
+std::vector<size_t> trim_neighbor_indices(
   const std::vector<AgentHistory> & histories, size_t ego_index, size_t top_k)
 {
-  std::vector<int> output;
+  std::vector<size_t> output;
   for (size_t i = 0; i < histories.size(); ++i) {
     if (i != ego_index) {
-      output.push_back(static_cast<int>(i));
+      output.push_back(i);
     }
   }
 

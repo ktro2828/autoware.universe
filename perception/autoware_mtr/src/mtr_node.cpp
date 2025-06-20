@@ -15,7 +15,6 @@
 #include "autoware/mtr/mtr_node.hpp"
 
 #include "autoware/mtr/archetype/agent.hpp"
-#include "autoware/mtr/archetype/map.hpp"
 #include "autoware/mtr/conversion/tracked_object.hpp"
 #include "autoware/mtr/processing/preprocessor.hpp"
 

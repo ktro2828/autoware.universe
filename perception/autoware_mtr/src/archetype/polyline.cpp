@@ -17,6 +17,7 @@
 #include "autoware/mtr/archetype/agent.hpp"
 #include "autoware/mtr/archetype/map.hpp"
 
+#include <algorithm>
 #include <numeric>
 #include <vector>
 

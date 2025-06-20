@@ -15,8 +15,6 @@
 #ifndef AUTOWARE__MTR__PROCESSING__POSTPROCESSOR_HPP_
 #define AUTOWARE__MTR__PROCESSING__POSTPROCESSOR_HPP_
 
-#include "autoware/mtr/archetype/agent.hpp"
-
 #include <autoware_perception_msgs/msg/predicted_object.hpp>
 #include <autoware_perception_msgs/msg/predicted_objects.hpp>
 #include <autoware_perception_msgs/msg/predicted_path.hpp>
@@ -25,7 +23,6 @@
 
 #include <string>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 namespace autoware::mtr::processing

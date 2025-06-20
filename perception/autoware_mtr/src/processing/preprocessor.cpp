@@ -16,10 +16,14 @@
 
 #include "autoware/mtr/processing/preprocessor.hpp"
 
+#include "autoware/mtr/archetype/agent.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <iterator>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace autoware::mtr::processing
@@ -102,13 +106,33 @@ PreProcessor::output_type PreProcessor::process(
   return {agent_tensor, map_tensor};
 }
 
+std::pair<std::vector<size_t>, std::vector<size_t>> PreProcessor::filter_agent(
+  const std::vector<archetype::AgentHistory> & histories, size_t ego_index) const
+{
+  // filter histories by its label
+  std::vector<archetype::AgentHistory> filtered;
+  for (const auto & history : histories) {
+    if (const auto label_id = static_cast<size_t>(history.begin()->label);
+        std::find(label_ids_.begin(), label_ids_.end(), label_id) == label_ids_.end()) {
+      filtered.emplace_back(history);
+    }
+  }
+
+  // return the indices sorted by distance from ego
+  auto target_indices = archetype::trim_neighbor_indices(filtered, ego_index, max_num_target_);
+  // NOTE: in order to insert ego index to neighbor the max size of neighbor indices is N-1
+  auto neighbor_indices = archetype::trim_neighbor_indices(filtered, ego_index, max_num_agent_ - 1);
+  neighbor_indices.push_back(ego_index);
+
+  return {target_indices, neighbor_indices};
+}
+
 archetype::AgentTensor PreProcessor::process_agent(
   const std::vector<double> & timestamps, const std::vector<archetype::AgentHistory> & histories,
   size_t ego_index) const
 {
-  // trim top-k nearest neighbor histories
-  const auto target_indices =
-    archetype::trim_neighbor_indices(histories, ego_index, max_num_agent_);
+  // trim top-k nearest neighbor histories, indices are sorted by distance
+  const auto [target_indices, neighbor_indices] = filter_agent(histories, ego_index);
 
   const size_t num_label = label_ids_.size();
   const size_t num_attribute = num_past_ + num_label + 16;  // T + L + 16
@@ -120,28 +144,34 @@ archetype::AgentTensor PreProcessor::process_agent(
   const size_t offset_vel = offset_yaw + 2;
   const size_t offset_accel = offset_vel + 2;
 
-  // TODO(ktro2828): max_num_agent should be renamed to max_num_target
   std::vector<float> in_agent(
     max_num_target_ * max_num_agent_ * num_past_ * num_attribute);  // (B * N * T * A)
   std::vector<uint8_t> in_agent_mask(max_num_target_ * max_num_agent_ * num_past_);  // (B * N * T)
   std::vector<float> in_agent_center(max_num_target_ * max_num_agent_ * 3);          // (B * N * 3)
-  std::vector<int> target_labels(max_num_target_);                                   // (B)
+  std::vector<int> in_target_indices(max_num_target_);                               // (B)
+  std::vector<int> in_target_labels(max_num_target_);                                // (B)
 
   std::vector<std::string> target_ids;  // NOTE: used in postprocessing
   for (size_t b = 0; b < target_indices.size() && b < max_num_target_; ++b) {
-    const auto & agent_index = target_indices.at(b);
-    const auto & target_history = histories.at(agent_index);
+    const auto & target_idx = target_indices.at(b);
+    const auto & target_history = histories.at(target_idx);
     const auto & target_current = target_history.current();
 
-    target_ids.emplace_back(target_history.agent_id);
+    in_target_indices[b] = static_cast<int>(target_idx);
 
-    const auto label_id = static_cast<size_t>(target_current.label);
-    target_labels[b] = label_id;
-    for (size_t n = 0; n < histories.size() && n < max_num_agent_; ++n) {
-      const auto & history_n = histories.at(n);
+    // use the index as label id associated with the label_ids
+    const auto label_idx = std::distance(
+      label_ids_.begin(),
+      std::find(label_ids_.begin(), label_ids_.end(), static_cast<size_t>(target_current.label)));
+    in_target_labels[b] = label_idx;
+
+    target_ids.emplace_back(target_history.agent_id);
+    for (size_t n = 0; n < neighbor_indices.size() && n < max_num_agent_; ++n) {
+      const auto & neighbor_idx = neighbor_indices.at(n);
+      const auto & neighbor_history = histories.at(neighbor_idx);
 
       // transform from map coordinate to current state relative coordinate
-      const auto transformed = history_n.transform(target_current);
+      const auto transformed = neighbor_history.transform(target_current);
 
       // agent center
       const size_t center_idx = (b * max_num_agent_ + n) * 3;
@@ -168,11 +198,11 @@ archetype::AgentTensor PreProcessor::process_agent(
         in_agent[idx + 4] = static_cast<float>(state_t.width);
         in_agent[idx + 5] = static_cast<float>(state_t.height);
         // 3.type onehot
-        in_agent[idx + offset_type + label_id] = 1.0f;
-        if (b == n) {
+        in_agent[idx + offset_type + label_idx] = 1.0f;
+        if (target_idx == neighbor_idx) {
           in_agent[idx + offset_type + num_label] = 1.0f;
         }
-        if (n == ego_index) {
+        if (neighbor_idx == ego_index) {
           in_agent[idx + offset_type + num_label + 1] = 1.0f;
         }
         // 4.time embedding
@@ -199,7 +229,7 @@ archetype::AgentTensor PreProcessor::process_agent(
   }
 
   return archetype::AgentTensor(
-    in_agent, in_agent_mask, in_agent_center, target_indices, target_labels, target_ids,
+    in_agent, in_agent_mask, in_agent_center, in_target_indices, in_target_labels, target_ids,
     max_num_target_, max_num_agent_, num_past_, num_attribute);
 }
 

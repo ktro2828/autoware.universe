@@ -16,14 +16,11 @@
 #define AUTOWARE__MTR__ARCHETYPE__MAP_HPP_
 
 #include "autoware/mtr/archetype/agent.hpp"
-#include "autoware/mtr/archetype/exception.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
-#include <sstream>
 #include <tuple>
-#include <vector>
 
 namespace autoware::mtr::archetype
 {

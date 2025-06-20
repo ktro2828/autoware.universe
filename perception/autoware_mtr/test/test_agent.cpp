@@ -151,20 +151,25 @@ TEST(LabelTest, ToLabelIdsInvalid)
 TEST(NeighborTest, TrimNeighborIndices)
 {
   std::vector<archetype::AgentHistory> histories;
-  // ego at (0,0), two neighbors (3,0) and (0,4)
+  // ego at (0,0), two neighbors (0,4) and (3,0)
   histories.emplace_back(
     "ego", 1,
     archetype::AgentState(0, 0, 0, 4, 2, 1, 0, 0, 0, archetype::AgentLabel::VEHICLE, true));
   histories.emplace_back(
-    "a", 1,
-    archetype::AgentState(3, 0, 0, 4, 2, 1, 0, 0, 0, archetype::AgentLabel::PEDESTRIAN, true));
+    "a", 1, archetype::AgentState(0, 4, 0, 4, 2, 1, 0, 0, 0, archetype::AgentLabel::CYCLIST, true));
   histories.emplace_back(
-    "b", 1, archetype::AgentState(0, 4, 0, 4, 2, 1, 0, 0, 0, archetype::AgentLabel::CYCLIST, true));
+    "b", 1,
+    archetype::AgentState(3, 0, 0, 4, 2, 1, 0, 0, 0, archetype::AgentLabel::PEDESTRIAN, true));
 
-  auto indices = archetype::trim_neighbor_indices(histories, 0, 1);
+  auto indices_k1 = archetype::trim_neighbor_indices(histories, 0, 1);
+  EXPECT_EQ(indices_k1.size(), 1u);
+  EXPECT_EQ(indices_k1[0], 2);
 
-  EXPECT_EQ(indices.size(), 1u);
-  EXPECT_EQ(indices[0], 1);
+  // if top_k > num_hist -> num_idx == num_hist
+  auto indices_k3 = archetype::trim_neighbor_indices(histories, 0, 3);
+  EXPECT_EQ(indices_k3.size(), 2u);
+  EXPECT_EQ(indices_k3[0], 2);
+  EXPECT_EQ(indices_k3[1], 1);
 }
 
 }  // namespace autoware::mtr::test

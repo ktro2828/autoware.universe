@@ -19,7 +19,6 @@
 #include "autoware/mtr/archetype/map.hpp"
 
 #include <algorithm>
-#include <utility>
 #include <vector>
 
 namespace autoware::mtr::archetype

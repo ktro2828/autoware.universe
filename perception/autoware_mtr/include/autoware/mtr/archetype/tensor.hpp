@@ -16,7 +16,6 @@
 #define AUTOWARE__MTR__ARCHETYPE__TENSOR_HPP_
 
 #include "autoware/mtr/archetype/exception.hpp"
-#include "autoware/mtr/archetype/polyline.hpp"
 
 #include <sstream>
 #include <string>

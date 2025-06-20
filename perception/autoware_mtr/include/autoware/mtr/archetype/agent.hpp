@@ -241,7 +241,7 @@ private:
  * @return Vector of indices of the top-k closest agents sorted by distance from ego, excluding the
  * ego agent.
  */
-std::vector<int> trim_neighbor_indices(
+std::vector<size_t> trim_neighbor_indices(
   const std::vector<AgentHistory> & histories, size_t ego_index, size_t top_k);
 }  // namespace autoware::mtr::archetype
 #endif  // AUTOWARE__MTR__ARCHETYPE__AGENT_HPP_

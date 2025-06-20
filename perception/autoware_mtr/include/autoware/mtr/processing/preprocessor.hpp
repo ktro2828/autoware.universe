@@ -16,13 +16,9 @@
 #define AUTOWARE__MTR__PROCESSING__PREPROCESSOR_HPP_
 
 #include "autoware/mtr/archetype/agent.hpp"
-#include "autoware/mtr/archetype/exception.hpp"
-#include "autoware/mtr/archetype/map.hpp"
 #include "autoware/mtr/archetype/polyline.hpp"
 #include "autoware/mtr/archetype/tensor.hpp"
 
-#include <map>
-#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -68,6 +64,17 @@ public:
     const std::vector<archetype::Polyline> & polylines, size_t ego_index) const;
 
 private:
+  /**
+   * @brief Return the agent indices to be considered by filtering histories with its label and
+   * distance.
+   *
+   * @param histories Vector of agent histories.
+   * @param ego_index Index of ego in the histories.
+   * @return target indices and neighbor indices.
+   */
+  std::pair<std::vector<size_t>, std::vector<size_t>> filter_agent(
+    const std::vector<archetype::AgentHistory> & histories, size_t ego_index) const;
+
   /**
    * @brief Execute preprocessing for agent tensor.
    *
