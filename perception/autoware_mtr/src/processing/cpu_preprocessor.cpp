@@ -14,9 +14,10 @@
 
 // cspell: ignore onehot
 
-#include "autoware/mtr/processing/preprocessor.hpp"
+#include "autoware/mtr/processing/cpu_preprocessor.hpp"
 
 #include "autoware/mtr/archetype/agent.hpp"
+#include "autoware/mtr/processing/processor.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -79,22 +80,18 @@ std::vector<archetype::Polyline> break_polylines(
 }
 }  // namespace
 
-PreProcessor::PreProcessor(
+CpuPreProcessor::CpuPreProcessor(
   const std::vector<size_t> & label_ids, size_t max_num_target, size_t max_num_agent,
   size_t num_past, size_t max_num_polyline, size_t max_num_point, double polyline_range_distance,
   double polyline_break_distance)
-: label_ids_(label_ids),
-  max_num_target_(max_num_target),
-  max_num_agent_(max_num_agent),
-  num_past_(num_past),
-  max_num_polyline_(max_num_polyline),
-  max_num_point_(max_num_point),
-  polyline_range_distance_(polyline_range_distance),
-  polyline_break_distance_(polyline_break_distance)
+: IPreProcessor(
+    max_num_target, max_num_agent, num_past, max_num_polyline, max_num_point,
+    polyline_range_distance, polyline_break_distance),
+  label_ids_(label_ids)
 {
 }
 
-PreProcessor::output_type PreProcessor::process(
+CpuPreProcessor::output_type CpuPreProcessor::process(
   const std::vector<double> & timestamps, const std::vector<archetype::AgentHistory> & histories,
   const std::vector<archetype::Polyline> & polylines, size_t ego_index) const
 {
@@ -106,7 +103,7 @@ PreProcessor::output_type PreProcessor::process(
   return {agent_tensor, map_tensor};
 }
 
-std::pair<std::vector<size_t>, std::vector<size_t>> PreProcessor::filter_agent(
+std::pair<std::vector<size_t>, std::vector<size_t>> CpuPreProcessor::filter_agent(
   const std::vector<archetype::AgentHistory> & histories, size_t ego_index) const
 {
   // filter histories by its label
@@ -127,7 +124,7 @@ std::pair<std::vector<size_t>, std::vector<size_t>> PreProcessor::filter_agent(
   return {target_indices, neighbor_indices};
 }
 
-archetype::AgentTensor PreProcessor::process_agent(
+archetype::AgentTensor CpuPreProcessor::process_agent(
   const std::vector<double> & timestamps, const std::vector<archetype::AgentHistory> & histories,
   size_t ego_index) const
 {
@@ -233,7 +230,7 @@ archetype::AgentTensor PreProcessor::process_agent(
     max_num_target_, max_num_agent_, num_past_, num_attribute);
 }
 
-archetype::MapTensor PreProcessor::process_map(
+archetype::MapTensor CpuPreProcessor::process_map(
   const std::vector<archetype::Polyline> & polylines,
   const std::vector<archetype::AgentHistory> & histories, const std::vector<int> & target_indices,
   size_t ego_index) const

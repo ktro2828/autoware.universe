@@ -12,14 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef AUTOWARE__MTR__PROCESSING__POSTPROCESSOR_HPP_
-#define AUTOWARE__MTR__PROCESSING__POSTPROCESSOR_HPP_
+#ifndef AUTOWARE__MTR__PROCESSING__CPU_POSTPROCESSOR_HPP_
+#define AUTOWARE__MTR__PROCESSING__CPU_POSTPROCESSOR_HPP_
 
-#include <autoware_perception_msgs/msg/predicted_object.hpp>
-#include <autoware_perception_msgs/msg/predicted_objects.hpp>
-#include <autoware_perception_msgs/msg/predicted_path.hpp>
-#include <autoware_perception_msgs/msg/tracked_object.hpp>
-#include <std_msgs/msg/header.hpp>
+#include "autoware/mtr/processing/processor.hpp"
 
 #include <string>
 #include <unordered_map>
@@ -28,18 +24,11 @@
 namespace autoware::mtr::processing
 {
 /**
- * @brief A class for postprocessing.
+ * @brief A class for postprocessing on CPU.
  */
-class PostProcessor
+class CpuPostProcessor : public IPostProcessor
 {
 public:
-  using Header = std_msgs::msg::Header;
-  using PredictedObjects = autoware_perception_msgs::msg::PredictedObjects;
-  using PredictedObject = autoware_perception_msgs::msg::PredictedObject;
-  using PredictedPath = autoware_perception_msgs::msg::PredictedPath;
-  using TrackedObject = autoware_perception_msgs::msg::TrackedObject;
-  using output_type = PredictedObjects;
-
   /**
    * @brief Construct a new PostProcessor object.
    *
@@ -47,14 +36,14 @@ public:
    * @param num_future Number of predicted future timestamps (Tf).
    * @param score_threshold Score threshold [0, 1].
    */
-  PostProcessor(size_t num_mode, size_t num_future, double score_threshold);
+  CpuPostProcessor(size_t num_mode, size_t num_future, double score_threshold);
 
   /**
    * @brief Execute postprocessing.
    *
-   * @param scores Vector of scores [N'xM].
-   * @param trajectories Vector of predicted trajectory attributes [N'xMxTfx7].
-   * @param agent_ids Agent IDs [N].
+   * @param scores Vector of scores [BxM].
+   * @param trajectories Vector of predicted trajectory attributes [BxMxTfx7].
+   * @param agent_ids Agent IDs [B].
    * @param header ROS message header.
    * @param tracked_object_map Hasmap of agent id and tracked object message.
    * @return Return the predicted objects.
@@ -63,11 +52,6 @@ public:
     const std::vector<float> & scores, const std::vector<float> & trajectories,
     const std::vector<std::string> & agent_ids, const Header & header,
     const std::unordered_map<std::string, TrackedObject> & tracked_object_map) const;
-
-private:
-  size_t num_mode_;         //!< Number of modes (M).
-  size_t num_future_;       //!< Number of predicted future timestamps (Tf).
-  double score_threshold_;  //!< Score threshold [0, 1].
 };
 }  // namespace autoware::mtr::processing
-#endif  // AUTOWARE__MTR__PROCESSING__POSTPROCESSOR_HPP_
+#endif  // AUTOWARE__MTR__PROCESSING__CPU_POSTPROCESSOR_HPP_

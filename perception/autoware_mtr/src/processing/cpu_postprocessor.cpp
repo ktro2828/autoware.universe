@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "autoware/mtr/processing/postprocessor.hpp"
+#include "autoware/mtr/processing/cpu_postprocessor.hpp"
 
 #include <autoware_utils_geometry/geometry.hpp>
 
@@ -33,11 +33,11 @@ namespace
  * @param waypoints Predicted waypoints.
  * @param tracked_object Tracked object.
  */
-PostProcessor::PredictedPath to_predicted_path(
+IPostProcessor::PredictedPath to_predicted_path(
   double confidence, const std::vector<std::pair<double, double>> & waypoints,
-  const PostProcessor::TrackedObject & tracked_object)
+  const IPostProcessor::TrackedObject & tracked_object)
 {
-  PostProcessor::PredictedPath output;
+  IPostProcessor::PredictedPath output;
   output.confidence = confidence;
   output.time_step = rclcpp::Duration::from_seconds(0.1);
 
@@ -64,9 +64,9 @@ PostProcessor::PredictedPath to_predicted_path(
  *
  * @param input Tracked object.
  */
-PostProcessor::PredictedObject from_tracked_object(const PostProcessor::TrackedObject & input)
+IPostProcessor::PredictedObject from_tracked_object(const IPostProcessor::TrackedObject & input)
 {
-  PostProcessor::PredictedObject output;
+  IPostProcessor::PredictedObject output;
   output.classification = input.classification;
   output.object_id = input.object_id;
   output.shape = input.shape;
@@ -89,7 +89,7 @@ PostProcessor::PredictedObject from_tracked_object(const PostProcessor::TrackedO
  * @return std::pair<double, double>
  */
 std::pair<double, double> local_to_global(
-  double local_x, double local_y, const PostProcessor::TrackedObject & object)
+  double local_x, double local_y, const IPostProcessor::TrackedObject & object)
 {
   const auto & map_pose = object.kinematics.pose_with_covariance.pose;
 
@@ -105,12 +105,12 @@ std::pair<double, double> local_to_global(
 }
 }  // namespace
 
-PostProcessor::PostProcessor(size_t num_mode, size_t num_future, double score_threshold)
-: num_mode_(num_mode), num_future_(num_future), score_threshold_(score_threshold)
+CpuPostProcessor::CpuPostProcessor(size_t num_mode, size_t num_future, double score_threshold)
+: IPostProcessor(num_mode, num_future, score_threshold)
 {
 }
 
-PostProcessor::output_type PostProcessor::process(
+CpuPostProcessor::output_type CpuPostProcessor::process(
   const std::vector<float> & scores, const std::vector<float> & trajectories,
   const std::vector<std::string> & agent_ids, const Header & header,
   const std::unordered_map<std::string, TrackedObject> & tracked_object_map) const

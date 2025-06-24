@@ -16,7 +16,8 @@
 
 #include "autoware/mtr/archetype/agent.hpp"
 #include "autoware/mtr/conversion/tracked_object.hpp"
-#include "autoware/mtr/processing/preprocessor.hpp"
+#include "autoware/mtr/processing/cpu_postprocessor.hpp"
+#include "autoware/mtr/processing/cpu_preprocessor.hpp"
 
 #include <autoware_lanelet2_extension/utility/message_conversion.hpp>
 #include <autoware_utils/ros/uuid_helper.hpp>
@@ -73,7 +74,7 @@ MTRNode::MTRNode(const rclcpp::NodeOptions & options) : rclcpp::Node("mtr", opti
     const auto polyline_break_distance =
       declare_parameter<double>("preprocess.polyline_break_distance");
 
-    preprocessor_ = std::make_unique<processing::PreProcessor>(
+    preprocessor_ = std::make_unique<processing::CpuPreProcessor>(
       label_ids, max_num_target, max_num_agent, num_past_, max_num_polyline, max_num_point,
       polyline_range_distance, polyline_break_distance);
 
@@ -86,7 +87,7 @@ MTRNode::MTRNode(const rclcpp::NodeOptions & options) : rclcpp::Node("mtr", opti
     const auto num_future = declare_parameter<int>("postprocess.num_future");
     const auto score_threshold = declare_parameter<double>("postprocess.score_threshold");
     postprocessor_ =
-      std::make_unique<processing::PostProcessor>(num_mode, num_future, score_threshold);
+      std::make_unique<processing::CpuPostProcessor>(num_mode, num_future, score_threshold);
   }
 
   {

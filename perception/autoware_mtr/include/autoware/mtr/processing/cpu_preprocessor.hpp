@@ -12,27 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef AUTOWARE__MTR__PROCESSING__PREPROCESSOR_HPP_
-#define AUTOWARE__MTR__PROCESSING__PREPROCESSOR_HPP_
+#ifndef AUTOWARE__MTR__PROCESSING__CPU_PREPROCESSOR_HPP_
+#define AUTOWARE__MTR__PROCESSING__CPU_PREPROCESSOR_HPP_
 
-#include "autoware/mtr/archetype/agent.hpp"
-#include "autoware/mtr/archetype/polyline.hpp"
-#include "autoware/mtr/archetype/tensor.hpp"
+#include "autoware/mtr/processing/processor.hpp"
 
-#include <tuple>
 #include <utility>
 #include <vector>
 
 namespace autoware::mtr::processing
 {
 /**
- * @brief A class to execute preprocessing.
+ * @brief A class to execute preprocessing on CPU.
  */
-class PreProcessor
+class CpuPreProcessor : public IPreProcessor
 {
 public:
-  using output_type = std::tuple<archetype::AgentTensor, archetype::MapTensor>;
-
   /**
    * @brief Construct a new Preprocessor object.
    *
@@ -45,7 +40,7 @@ public:
    * @param polyline_range_distance Distance threshold from ego to trim polylines [m].
    * @param polyline_break_distance Distance threshold to break two polylines [m].
    */
-  PreProcessor(
+  CpuPreProcessor(
     const std::vector<size_t> & label_ids, size_t max_num_target, size_t max_num_agent,
     size_t num_past, size_t max_num_polyline, size_t max_num_point, double polyline_range_distance,
     double polyline_break_distance);
@@ -61,7 +56,7 @@ public:
    */
   output_type process(
     const std::vector<double> & timestamps, const std::vector<archetype::AgentHistory> & histories,
-    const std::vector<archetype::Polyline> & polylines, size_t ego_index) const;
+    const std::vector<archetype::Polyline> & polylines, size_t ego_index) const override;
 
 private:
   /**
@@ -99,14 +94,7 @@ private:
     const std::vector<archetype::AgentHistory> & histories, const std::vector<int> & target_indices,
     size_t ego_index) const;
 
-  const std::vector<size_t> label_ids_;   //!< Vector of predictable label ids.
-  const size_t max_num_target_;           //!< Maximum number of predictable agents (B).
-  const size_t max_num_agent_;            //!< Maximum number of predictable agents (N).
-  const size_t num_past_;                 //!< Number of past timestamps (Tp).
-  const size_t max_num_polyline_;         //!< Maximum number of polylines (K).
-  const size_t max_num_point_;            //!< Maximum number of points in a single polyline (P).
-  const double polyline_range_distance_;  //!< Distance threshold from ego to trim polylines [m].
-  const double polyline_break_distance_;  //!< Distance threshold to break two polylines [m].
+  std::vector<size_t> label_ids_;  //!< Vector of predictable label ids on CPU.
 };
 }  // namespace autoware::mtr::processing
-#endif  // AUTOWARE__MTR__PROCESSING__PREPROCESSOR_HPP_
+#endif  // AUTOWARE__MTR__PROCESSING__CPU_PREPROCESSOR_HPP_

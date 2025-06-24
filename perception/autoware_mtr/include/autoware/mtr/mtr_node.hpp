@@ -17,8 +17,7 @@
 
 #include "autoware/mtr/archetype/agent.hpp"
 #include "autoware/mtr/conversion/lanelet.hpp"
-#include "autoware/mtr/processing/postprocessor.hpp"
-#include "autoware/mtr/processing/preprocessor.hpp"
+#include "autoware/mtr/processing/processor.hpp"
 #include "autoware/mtr/trt_mtr.hpp"
 
 #include <autoware_utils/ros/polling_subscriber.hpp>
@@ -141,10 +140,10 @@ private:
   std::unique_ptr<TrtMTR> detector_;
 
   //!< Pre-processor.
-  std::unique_ptr<processing::PreProcessor> preprocessor_;
+  std::unique_ptr<processing::IPreProcessor> preprocessor_;
 
   //!< Post-processor.
-  std::unique_ptr<processing::PostProcessor> postprocessor_;
+  std::unique_ptr<processing::IPostProcessor> postprocessor_;
 
   //!< Debugger for processing time.
   std::unique_ptr<autoware_utils_system::StopWatch<std::chrono::milliseconds>> stopwatch_ptr_;
