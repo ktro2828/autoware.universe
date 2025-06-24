@@ -46,8 +46,11 @@ if(BUILD_TESTING)
     test/test_map.cpp
     test/test_polyline.cpp
     test/test_result.cpp
-    test/test_tensor.cpp)
+    test/test_tensor.cpp
+    # processing
+    test/test_cpu_postprocessor.cpp
+    test/test_cpu_preprocessor.cpp)
   target_link_libraries(test_mtr ${PROJECT_NAME})
 endif()
 
-ament_auto_package(INSTALL_TO_SHARE launch config)
+ament_auto_package(INSTALL_TO_SHARE launch config data)

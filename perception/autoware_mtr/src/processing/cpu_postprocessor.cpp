@@ -16,6 +16,7 @@
 
 #include <autoware_utils_geometry/geometry.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <string>
 #include <unordered_map>
@@ -122,19 +123,21 @@ CpuPostProcessor::output_type CpuPostProcessor::process(
     const auto & tracked_object = tracked_object_map.at(agent_ids.at(n));
 
     auto predicted_object = from_tracked_object(tracked_object);
-    for (size_t m = 0; m < num_mode_; ++m) {
-      const auto score_idx = n * num_mode_ + m;
-      const auto & score = static_cast<double>(scores.at(score_idx));
+
+    const auto mode_scores = scores.data() + n * num_mode_;
+    const auto mode_indices = sort_by_score(mode_scores);
+    for (size_t m : mode_indices) {
+      const auto & confidence = static_cast<double>(*(mode_scores + m));
+
       // skip if the score is lower than threshold
-      if (score < score_threshold_) {
+      if (confidence < score_threshold_) {
         continue;
       }
 
       std::vector<std::pair<double, double>> waypoints;
       for (size_t t = 0; t < num_future_; ++t) {
         // Index: (n * M * Tf + m * Tf + t) * Dp
-        const auto trajectory_idx =
-          (n * num_mode_ * num_future_ + m * num_future_ + t) * num_attribute;
+        const auto trajectory_idx = ((n * num_mode_ + m) * num_future_ + t) * num_attribute;
 
         // (x, y, ox, oy, oz, vx, vy): w.r.t object local
         const double x = static_cast<double>(trajectories.at(trajectory_idx));
@@ -144,12 +147,26 @@ CpuPostProcessor::output_type CpuPostProcessor::process(
         waypoints.emplace_back(local_to_global(x, y, tracked_object));
       }
       predicted_object.kinematics.predicted_paths.emplace_back(
-        to_predicted_path(score, waypoints, tracked_object));
+        to_predicted_path(confidence, waypoints, tracked_object));
     }
     predicted_objects.emplace_back(predicted_object);
   }
 
   return autoware_perception_msgs::build<PredictedObjects>().header(header).objects(
     predicted_objects);
+}
+
+std::vector<size_t> CpuPostProcessor::sort_by_score(const float * scores) const
+{
+  std::vector<size_t> output;
+  for (size_t i = 0; i < num_mode_; ++i) {
+    output.push_back(i);
+  }
+
+  std::sort(output.begin(), output.end(), [&scores](size_t i1, size_t i2) {
+    return scores[i1] > scores[i2];
+  });
+
+  return output;
 }
 }  // namespace autoware::mtr::processing

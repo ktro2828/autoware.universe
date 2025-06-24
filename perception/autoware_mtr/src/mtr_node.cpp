@@ -99,11 +99,6 @@ MTRNode::MTRNode(const rclcpp::NodeOptions & options) : rclcpp::Node("mtr", opti
     detector_ = std::make_unique<TrtMTR>(config);
   }
 
-  if (declare_parameter<bool>("build_only")) {
-    RCLCPP_INFO(get_logger(), "TensorRT engine file is built and exit.");
-    rclcpp::shutdown();
-  }
-
   {
     // Debug processing time
     stopwatch_ptr_ =
@@ -112,6 +107,11 @@ MTRNode::MTRNode(const rclcpp::NodeOptions & options) : rclcpp::Node("mtr", opti
     stopwatch_ptr_->tic("processing_time");
     processing_time_publisher_ =
       std::make_unique<autoware_utils_debug::DebugPublisher>(this, get_name());
+  }
+
+  if (declare_parameter<bool>("build_only")) {
+    RCLCPP_INFO(get_logger(), "TensorRT engine file is built and exit.");
+    rclcpp::shutdown();
   }
 }
 
@@ -123,7 +123,7 @@ void MTRNode::callback(const TrackedObjects::ConstSharedPtr objects_msg)
   timestamp_buffer_->push_back(rclcpp::Time(objects_msg->header.stamp).seconds());
   std::vector<double> timestamps(timestamp_buffer_->size());
   for (size_t i = 0; i < timestamp_buffer_->size(); ++i) {
-    timestamps[i] = timestamp_buffer_->at(i) - timestamp_buffer_->front();
+    timestamps[i] = (timestamp_buffer_->at(i) - timestamp_buffer_->front()) * 1e-6;
   }
 
   const auto polylines_opt = lanelet_converter_ptr_->polylines();

@@ -29,7 +29,7 @@ TEST(TensorTest, AgentTensorValid)
   size_t num_past = 4;
   size_t num_attribute = 5;
   std::vector<float> in_agent(num_target * num_agent * num_past * num_attribute, 1.0f);
-  std::vector<uint8_t> in_agent_mask(num_target * num_agent, 1);
+  std::vector<uint8_t> in_agent_mask(num_target * num_agent * num_past, 1);
   std::vector<float> in_agent_center(num_target * num_agent * 3, 0.0f);
   std::vector<int> target_indices{0, 1};
   std::vector<int> target_labels{0, 1};
@@ -40,7 +40,7 @@ TEST(TensorTest, AgentTensorValid)
     num_agent, num_past, num_attribute);
 
   EXPECT_EQ(tensor.in_agent.size(), num_target * num_agent * num_past * num_attribute);
-  EXPECT_EQ(tensor.in_agent_mask.size(), num_target * num_agent);
+  EXPECT_EQ(tensor.in_agent_mask.size(), num_target * num_agent * num_past);
   EXPECT_EQ(tensor.in_agent_center.size(), num_target * num_agent * 3);
   EXPECT_EQ(tensor.target_indices.size(), target_indices.size());
   EXPECT_EQ(tensor.target_labels.size(), target_labels.size());
@@ -103,14 +103,14 @@ TEST(TensorTest, MapTensorValid)
   // Create MapTensor with valid sizes
   size_t num_target = 2, num_polyline = 3, num_point = 4, num_attribute = 5;
   std::vector<float> in_map(num_target * num_polyline * num_point * num_attribute, 1.0f);
-  std::vector<uint8_t> in_map_mask(num_target * num_polyline, 1);
+  std::vector<uint8_t> in_map_mask(num_target * num_polyline * num_point, 1);
   std::vector<float> in_map_center(num_target * num_polyline * 3, 0.0f);
 
   archetype::MapTensor tensor(
     in_map, in_map_mask, in_map_center, num_target, num_polyline, num_point, num_attribute);
 
   EXPECT_EQ(tensor.in_map.size(), num_target * num_polyline * num_point * num_attribute);
-  EXPECT_EQ(tensor.in_map_mask.size(), num_target * num_polyline);
+  EXPECT_EQ(tensor.in_map_mask.size(), num_target * num_polyline * num_point);
   EXPECT_EQ(tensor.in_map_center.size(), num_target * num_polyline * 3);
 }
 

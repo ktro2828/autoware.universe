@@ -65,10 +65,10 @@ public:
     }
 
     // check the size of in_agent_mask.
-    if (in_agent_mask.size() != num_target * num_agent) {
+    if (in_agent_mask.size() != num_target * num_agent * num_past) {
       std::ostringstream msg;
       msg << "Invalid size of agent mask: " << in_agent_mask.size()
-          << " != " << num_target * num_agent;
+          << " != " << num_target * num_agent * num_past;
       throw MTRException(MTRError_t::InvalidValue, msg.str());
     }
 
@@ -134,10 +134,10 @@ public:
     }
 
     // check the size of in_map_mask.
-    if (in_map_mask.size() != num_target * num_polyline) {
+    if (in_map_mask.size() != num_target * num_polyline * num_point) {
       std::ostringstream msg;
       msg << "Invalid size of map mask: " << in_map_mask.size()
-          << " != " << num_target * num_polyline;
+          << " != " << num_target * num_polyline * num_point;
       throw MTRException(MTRError_t::InvalidValue, msg.str());
     }
 

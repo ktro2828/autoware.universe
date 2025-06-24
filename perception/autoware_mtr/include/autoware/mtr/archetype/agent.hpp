@@ -235,13 +235,16 @@ private:
 /**
  * @brief Trim neighbor indices to keep only the top-k closest agents.
  *
+ * @param indices Vector of indices.
  * @param histories Source histories containing agent states.
  * @param ego_index Index of the ego agent.
  * @param top_k Number of top closest agents to keep.
- * @return Vector of indices of the top-k closest agents sorted by distance from ego, excluding the
- * ego agent.
+ * @param ignore_ego Whether to ignore inserting ego index to the output indices.
+ * @return Vector of indices of the top-k closest agents sorted by distance from ego. If
+ * `ignore_ego=True` exclude the ego agent.
  */
 std::vector<size_t> trim_neighbor_indices(
-  const std::vector<AgentHistory> & histories, size_t ego_index, size_t top_k);
+  const std::vector<size_t> & indices, const std::vector<AgentHistory> & histories,
+  size_t ego_index, size_t top_k, bool include_ego);
 }  // namespace autoware::mtr::archetype
 #endif  // AUTOWARE__MTR__ARCHETYPE__AGENT_HPP_

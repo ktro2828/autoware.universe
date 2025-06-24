@@ -52,6 +52,15 @@ public:
     const std::vector<float> & scores, const std::vector<float> & trajectories,
     const std::vector<std::string> & agent_ids, const Header & header,
     const std::unordered_map<std::string, TrackedObject> & tracked_object_map) const;
+
+private:
+  /**
+   * @brief Sort mode with its score.
+   *
+   * @param scores Read only pointer to the first element of the mode score.
+   * @return Indices of the mode scores, sorted by score in descending order.
+   */
+  std::vector<size_t> sort_by_score(const float * scores) const;
 };
 }  // namespace autoware::mtr::processing
 #endif  // AUTOWARE__MTR__PROCESSING__CPU_POSTPROCESSOR_HPP_

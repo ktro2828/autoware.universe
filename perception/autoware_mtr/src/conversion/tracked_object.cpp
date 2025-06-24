@@ -97,14 +97,13 @@ archetype::AgentState to_agent_state(const nav_msgs::msg::Odometry & odometry)
   const double yaw = autoware_utils_geometry::get_rpy(pose.orientation).z;
   const auto [vx, vy] = local_to_global(odometry.twist.twist.linear, yaw);
 
-  // TODO(ktro2828): Box size
   return {
     pose.position.x,
     pose.position.y,
     pose.position.z,
-    0.5,
-    0.5,
-    0.5,
+    4.0,
+    2.0,
+    1.7,
     yaw,
     vx,
     vy,

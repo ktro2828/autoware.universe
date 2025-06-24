@@ -107,19 +107,21 @@ std::pair<std::vector<size_t>, std::vector<size_t>> CpuPreProcessor::filter_agen
   const std::vector<archetype::AgentHistory> & histories, size_t ego_index) const
 {
   // filter histories by its label
-  std::vector<archetype::AgentHistory> filtered;
-  for (const auto & history : histories) {
+  std::vector<size_t> filtered_indices;
+  for (size_t i = 0; i < histories.size(); ++i) {
+    const auto & history = histories.at(i);
     if (const auto label_id = static_cast<size_t>(history.begin()->label);
-        std::find(label_ids_.begin(), label_ids_.end(), label_id) == label_ids_.end()) {
-      filtered.emplace_back(history);
+        std::find(label_ids_.begin(), label_ids_.end(), label_id) != label_ids_.end()) {
+      filtered_indices.push_back(i);
     }
   }
 
   // return the indices sorted by distance from ego
-  auto target_indices = archetype::trim_neighbor_indices(filtered, ego_index, max_num_target_);
+  auto target_indices =
+    archetype::trim_neighbor_indices(filtered_indices, histories, ego_index, max_num_target_, true);
   // NOTE: in order to insert ego index to neighbor the max size of neighbor indices is N-1
-  auto neighbor_indices = archetype::trim_neighbor_indices(filtered, ego_index, max_num_agent_ - 1);
-  neighbor_indices.push_back(ego_index);
+  auto neighbor_indices =
+    archetype::trim_neighbor_indices(filtered_indices, histories, ego_index, max_num_agent_, false);
 
   return {target_indices, neighbor_indices};
 }
@@ -132,7 +134,7 @@ archetype::AgentTensor CpuPreProcessor::process_agent(
   const auto [target_indices, neighbor_indices] = filter_agent(histories, ego_index);
 
   const size_t num_label = label_ids_.size();
-  const size_t num_attribute = num_past_ + num_label + 16;  // T + L + 16
+  const size_t num_attribute = num_past_ + num_label + 15;  // T + L + 15
 
   // index offsets
   const size_t offset_type = 6;
@@ -157,10 +159,9 @@ archetype::AgentTensor CpuPreProcessor::process_agent(
     in_target_indices[b] = static_cast<int>(target_idx);
 
     // use the index as label id associated with the label_ids
-    const auto label_idx = std::distance(
+    in_target_labels[b] = std::distance(
       label_ids_.begin(),
       std::find(label_ids_.begin(), label_ids_.end(), static_cast<size_t>(target_current.label)));
-    in_target_labels[b] = label_idx;
 
     target_ids.emplace_back(target_history.agent_id);
     for (size_t n = 0; n < neighbor_indices.size() && n < max_num_agent_; ++n) {
@@ -195,6 +196,9 @@ archetype::AgentTensor CpuPreProcessor::process_agent(
         in_agent[idx + 4] = static_cast<float>(state_t.width);
         in_agent[idx + 5] = static_cast<float>(state_t.height);
         // 3.type onehot
+        const size_t label_idx = std::distance(
+          label_ids_.begin(),
+          std::find(label_ids_.begin(), label_ids_.end(), static_cast<size_t>(state_t.label)));
         in_agent[idx + offset_type + label_idx] = 1.0f;
         if (target_idx == neighbor_idx) {
           in_agent[idx + offset_type + num_label] = 1.0f;
@@ -206,11 +210,11 @@ archetype::AgentTensor CpuPreProcessor::process_agent(
         in_agent[idx + offset_time + t] = 1.0f;
         in_agent[idx + offset_time + num_past_] = static_cast<float>(timestamps.at(t));
         // 5.yaw embedding
-        in_agent[idx + offset_yaw] = std::sin(state_t.yaw);
-        in_agent[idx + offset_yaw + 1] = std::cos(state_t.yaw);
+        in_agent[idx + offset_yaw] = static_cast<float>(std::sin(state_t.yaw));
+        in_agent[idx + offset_yaw + 1] = static_cast<float>(std::cos(state_t.yaw));
         // 6. vxy
-        in_agent[idx + offset_vel] = state_t.vx;
-        in_agent[idx + offset_vel + 1] = state_t.vy;
+        in_agent[idx + offset_vel] = static_cast<float>(state_t.vx);
+        in_agent[idx + offset_vel + 1] = static_cast<float>(state_t.vy);
         // 7. accel
         if (t > 0) {
           const auto & prev = transformed.at(t - 1);
@@ -218,7 +222,7 @@ archetype::AgentTensor CpuPreProcessor::process_agent(
           in_agent[idx + offset_accel + 1] = static_cast<float>(state_t.vy - prev.vy) / 0.1f;
         } else if (t == 0 && transformed.size() > 1) {
           const auto & state_t1 = transformed.at(1);
-          in_agent[idx + offset_accel] = static_cast<float>(state_t1.x - state_t.vx) / 0.1f;
+          in_agent[idx + offset_accel] = static_cast<float>(state_t1.vx - state_t.vx) / 0.1f;
           in_agent[idx + offset_accel + 1] = static_cast<float>(state_t1.vy - state_t.vy) / 0.1f;
         }
       }
@@ -251,7 +255,7 @@ archetype::MapTensor CpuPreProcessor::process_map(
     });
 
   // create tensor, node centers and vectors
-  constexpr size_t num_attribute = 8;  // (x, y, z, dx, dy, dz, pre_x, pre_y)
+  constexpr size_t num_attribute = 9;  // (x, y, z, dx, dy, dz, label id, pre_x, pre_y)
   std::vector<float> in_map(
     max_num_target_ * max_num_polyline_ * max_num_point_ * num_attribute);  // (B * K * P * A)
   std::vector<uint8_t> in_map_mask(
@@ -294,21 +298,23 @@ archetype::MapTensor CpuPreProcessor::process_map(
           in_map[idx + 4] = 0.0f;
           in_map[idx + 5] = 0.0f;
         }
-        // 3.pre_x, pre_y
+        // 3.label id
+        in_map[idx + 6] = static_cast<float>(point.label);
+        // 4.pre_x, pre_y
         if (p > 0) {
           const auto & previous = polyline.at(p - 1);
-          in_map[idx + 6] = static_cast<float>(previous.x);
-          in_map[idx + 7] = static_cast<float>(previous.y);
+          in_map[idx + 7] = static_cast<float>(previous.x);
+          in_map[idx + 8] = static_cast<float>(previous.y);
         } else {
-          in_map[idx + 6] = static_cast<float>(point.x);
-          in_map[idx + 7] = static_cast<float>(point.y);
+          in_map[idx + 7] = static_cast<float>(point.x);
+          in_map[idx + 8] = static_cast<float>(point.y);
         }
       }
     }
   }
 
   return archetype::MapTensor(
-    in_map, in_map_mask, in_map_center, max_num_agent_, max_num_polyline_, max_num_point_,
+    in_map, in_map_mask, in_map_center, max_num_target_, max_num_polyline_, max_num_point_,
     num_attribute);
 }
 }  // namespace autoware::mtr::processing

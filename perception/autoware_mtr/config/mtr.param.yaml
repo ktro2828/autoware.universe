@@ -5,15 +5,15 @@
       engine_path: $(var data_path)/mtr.engine
       precision: fp32
     preprocess:
-      labels: [VEHICLE, PEDESTRIAN, MOTORCYCLIST, CYCLIST, LARGE_VEHICLE]
-      max_num_target: 15
-      max_num_agent: 50
+      labels: [VEHICLE, PEDESTRIAN, CYCLIST]
+      max_num_target: 10
+      max_num_agent: 15
       num_past: 11
-      max_num_polyline: 768
+      max_num_polyline: 80
       max_num_point: 20
       polyline_range_distance: 150.0
       polyline_break_distance: 5.0
     postprocess:
       num_mode: 6
       num_future: 80
-      score_threshold: 0.15
+      score_threshold: 0.1

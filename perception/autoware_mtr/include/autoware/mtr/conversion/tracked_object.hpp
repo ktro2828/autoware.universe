@@ -35,6 +35,7 @@ archetype::AgentState to_agent_state(const autoware_perception_msgs::msg::Tracke
  * @brief Convert ROS 2 `Odometry` message of the ego to internal `AgentState`.
  *
  * Assumes pose is in map coordinate frame, but velocity is in object coordinate frame.
+ * Note that shape size is fixed in `(4.0, 2.0, 1.7)`.
  *
  * @param odometry Ego odometry.
  * @param is_valid Indicates whether this state is valid.

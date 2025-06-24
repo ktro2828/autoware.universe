@@ -56,11 +56,12 @@ AgentState AgentState::transform(const AgentState & to_state) const
 
   const auto tx = (x - to_state.x) * to_cos + (y - to_state.y) * to_sin;
   const auto ty = -(x - to_state.x) * to_sin + (y - to_state.y) * to_cos;
+  const auto tz = z - to_state.z;
   const auto t_yaw = yaw - to_state.yaw;
   const auto t_vx = vx * to_cos + vy * to_sin;
   const auto t_vy = -vx * to_sin + vy * to_cos;
 
-  return {tx, ty, z, length, width, height, t_yaw, t_vx, t_vy, label, is_valid};
+  return {tx, ty, tz, length, width, height, t_yaw, t_vx, t_vy, label, is_valid};
 }
 
 AgentHistory AgentHistory::transform(const AgentState & state) const
@@ -77,13 +78,15 @@ AgentHistory AgentHistory::transform(const AgentState & state) const
 }
 
 std::vector<size_t> trim_neighbor_indices(
-  const std::vector<AgentHistory> & histories, size_t ego_index, size_t top_k)
+  const std::vector<size_t> & indices, const std::vector<AgentHistory> & histories,
+  size_t ego_index, size_t top_k, bool ignore_ego)
 {
   std::vector<size_t> output;
-  for (size_t i = 0; i < histories.size(); ++i) {
-    if (i != ego_index) {
-      output.push_back(i);
+  for (const auto & i : indices) {
+    if (ignore_ego && i == ego_index) {
+      continue;
     }
+    output.push_back(i);
   }
 
   const auto & current_ego = histories.at(ego_index).current();

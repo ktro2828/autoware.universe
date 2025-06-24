@@ -161,12 +161,12 @@ TEST(NeighborTest, TrimNeighborIndices)
     "b", 1,
     archetype::AgentState(3, 0, 0, 4, 2, 1, 0, 0, 0, archetype::AgentLabel::PEDESTRIAN, true));
 
-  auto indices_k1 = archetype::trim_neighbor_indices(histories, 0, 1);
+  auto indices_k1 = archetype::trim_neighbor_indices({0, 1, 2}, histories, 0, 1, true);
   EXPECT_EQ(indices_k1.size(), 1u);
   EXPECT_EQ(indices_k1[0], 2);
 
   // if top_k > num_hist -> num_idx == num_hist
-  auto indices_k3 = archetype::trim_neighbor_indices(histories, 0, 3);
+  auto indices_k3 = archetype::trim_neighbor_indices({0, 1, 2}, histories, 0, 3, true);
   EXPECT_EQ(indices_k3.size(), 2u);
   EXPECT_EQ(indices_k3[0], 2);
   EXPECT_EQ(indices_k3[1], 1);
