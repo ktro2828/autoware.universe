@@ -16,6 +16,7 @@
 
 #include "autoware/simpl/archetype/agent.hpp"
 #include "autoware/simpl/archetype/map.hpp"
+#include "autoware/simpl/archetype/polyline.hpp"
 #include "autoware/simpl/conversion/tracked_object.hpp"
 #include "autoware/simpl/debug/marker.hpp"
 #include "autoware/simpl/processing/preprocessor.hpp"
@@ -26,11 +27,12 @@
 #include <glog/logging.h>
 #include <lanelet2_core/LaneletMap.h>
 
+#include <filesystem>
+#include <fstream>
 #include <functional>
 #include <memory>
 #include <string>
 #include <unordered_set>
-#include <utility>
 #include <vector>
 
 namespace autoware::simpl
@@ -180,6 +182,175 @@ void SimplNode::callback(const TrackedObjects::ConstSharedPtr objects_msg)
     polyline_marker_publisher_->publish(polyline_marker_array);
     processed_map_marker_publisher_->publish(processed_map_marker_array);
   }
+
+  {
+    /**
+     * @brief save source data and preprocessed tensors.
+     *
+     * OUTPUT_ROOT/
+     *  |----timestamp.txt
+     *  |--- agent_id/
+     *  |     |--- <TIMESTAMP1>.txt
+     *  |     |--- <TIMESTAMP2>.txt
+     *  |     ...
+     *  |---- history/
+     *  |     |--- <TIMESTAMP1>.csv
+     *  |     |--- <TIMESTAMP2>.csv
+     *  |     ...
+     *  |---- polyline/
+     *  |     |--- <TIMESTAMP1>.bin
+     *  |     |--- <TIMESTAMP2>.bin
+     *  |     ...
+     *  |--- actor/
+     *  |     |--- <TIMESTAMP1>.bin
+     *  |     |--- <TIMESTAMP2>.bin
+     *  |     ...
+     *  |--- lane/
+     *  |     |--- <TIMESTAMP1>.bin
+     *  |     |--- <TIMESTAMP2>.bin
+     *  |     ...
+     *  |--- rpe/
+     *  |     |--- <TIMESTAMP1>.bin
+     *  |     |--- <TIMESTAMP2>.bin
+     *  |     ...
+     */
+
+    const auto histories_with_ego = update_history_with_ego(objects_msg, current_ego);
+
+    const auto & stamp = objects_msg->header.stamp;
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(6)
+        << static_cast<double>(stamp.sec) + static_cast<double>(stamp.nanosec) * 1e-9;
+    std::string timestamp_str = oss.str();
+
+    auto save_tensor = [](const float * tensor, size_t size, const std::string & filename) -> void {
+      std::ofstream ofs(filename, std::ios::binary);
+      ofs.write(reinterpret_cast<const char *>(&size), sizeof(size));
+      ofs.write(reinterpret_cast<const char *>(tensor), size * sizeof(float));
+    };
+
+    auto save_agent_ids =
+      [](const std::vector<std::string> & agent_ids, const std::string & filename) -> void {
+      std::ofstream ofs(filename);
+      for (const auto & id : agent_ids) {
+        ofs << id << "\n";
+      }
+    };
+
+    // save history as
+    auto save_history = [](
+                          const std::vector<archetype::AgentHistory> & histories,
+                          const std::string & filename) -> void {
+      auto label2string = [](archetype::AgentLabel label) -> std::string {
+        switch (label) {
+          case archetype::AgentLabel::VEHICLE:
+            return "VEHICLE";
+          case archetype::AgentLabel::PEDESTRIAN:
+            return "PEDESTRIAN";
+          case archetype::AgentLabel::MOTORCYCLIST:
+            return "MOTORCYCLIST";
+          case archetype::AgentLabel::CYCLIST:
+            return "CYCLIST";
+          case archetype::AgentLabel::LARGE_VEHICLE:
+            return "LARGE_VEHICLE";
+          case archetype::AgentLabel::UNKNOWN:
+            return "UNKNOWN";
+          default:
+            return "UNKNOWN";
+        }
+      };
+
+      std::ofstream ofs(filename);
+      ofs << "agent_id,t,x,y,z,yaw,vx,vy,label,is_valid\n";
+      for (const auto & h : histories) {
+        size_t t = 0;
+        for (const auto & s : h) {
+          ofs << h.agent_id << ',' << t << ',' << s.x << ',' << s.y << ',' << s.z << ',' << s.yaw
+              << ',' << s.vx << ',' << s.vy << ',' << label2string(s.label) << ','
+              << (s.is_valid ? "true" : "false") << '\n';
+          ++t;
+        }
+      }
+    };
+
+    auto save_polyline =
+      [](const std::vector<archetype::Polyline> & polylines, const std::string & filename) -> void {
+      auto label2string = [](archetype::MapLabel label) -> std::string {
+        switch (label) {
+          case archetype::MapLabel::ROADWAY:
+            return "ROADWAY";
+          case archetype::MapLabel::BUS_LANE:
+            return "BUS_LANE";
+          case archetype::MapLabel::BIKE_LANE:
+            return "BIKE_LANE";
+          case archetype::MapLabel::DASH_SOLID:
+            return "DASH_SOLID";
+          case archetype::MapLabel::DASHED:
+            return "DASHED";
+          case archetype::MapLabel::DOUBLE_DASH:
+            return "DOUBLE_DASH";
+          case archetype::MapLabel::SOLID:
+            return "SOLID";
+          case archetype::MapLabel::DOUBLE_SOLID:
+            return "DOUBLE_SOLID";
+          case archetype::MapLabel::SOLID_DASH:
+            return "SOLID_DASH";
+          case archetype::MapLabel::CROSSWALK:
+            return "CROSSWALK";
+          case archetype::MapLabel::UNKNOWN:
+            return "UNKNOWN";
+          default:
+            return "UNKNOWN";
+        }
+      };
+
+      std::ofstream ofs(filename);
+      ofs << "polyline_id,x,y,z,label\n";
+      for (const auto & polyline : polylines) {
+        for (const auto & pt : polyline) {
+          ofs << polyline.id() << ','                       // polyline_id
+              << pt.x << ',' << pt.y << ',' << pt.z << ','  // xyz
+              << label2string(pt.label)                     // label
+              << '\n';
+        }
+      }
+    };
+
+    auto append_timestamp =
+      [](const std::string & timestamp_str, const std::string & filename) -> void {
+      std::ofstream ofs(filename, std::ios::app);
+      ofs << timestamp_str << "\n";
+    };
+
+    std::string output_root = "/tmp/simpl_debug";
+    // source data
+    std::filesystem::create_directories(output_root + "/agent_id");
+    std::filesystem::create_directories(output_root + "/history");
+    std::filesystem::create_directories(output_root + "/polyline");
+    // preprocessed data
+    std::filesystem::create_directories(output_root + "/actor");
+    std::filesystem::create_directories(output_root + "/lane");
+    std::filesystem::create_directories(output_root + "/rpe");
+
+    save_tensor(
+      agent_metadata.tensor.data(), agent_metadata.tensor.size(),
+      output_root + "/actor/" + timestamp_str + ".bin");
+
+    save_tensor(
+      map_metadata.tensor.data(), map_metadata.tensor.size(),
+      output_root + "/lane/" + timestamp_str + ".bin");
+
+    save_tensor(
+      rpe_tensor.data(), rpe_tensor.size(), output_root + "/rpe/" + timestamp_str + ".bin");
+
+    save_agent_ids(agent_metadata.agent_ids, output_root + "/agent_id/" + timestamp_str + ".txt");
+
+    save_history(histories_with_ego, output_root + "/history/" + timestamp_str + ".csv");
+
+    save_polyline(polylines, output_root + "/polyline/" + timestamp_str + ".csv");
+
+    append_timestamp(timestamp_str, output_root + "/timestamp.txt");
+  }
 }
 
 void SimplNode::on_map(const LaneletMapBin::ConstSharedPtr map_msg)
@@ -233,6 +404,51 @@ std::vector<archetype::AgentHistory> SimplNode::update_history(
     if (std::find(observed_ids.begin(), observed_ids.end(), agent_id) == observed_ids.end()) {
       tracked_object_map_.erase(agent_id);
       itr = history_map_.erase(itr);
+    } else {
+      ++itr;
+    }
+  }
+  return histories;
+}
+
+std::vector<archetype::AgentHistory> SimplNode::update_history_with_ego(
+  const TrackedObjects::ConstSharedPtr objects_msg, const archetype::AgentState & current_ego)
+{
+  std::vector<archetype::AgentHistory> histories;
+  if (!objects_msg) {
+    return histories;
+  }
+
+  std::unordered_set<std::string> observed_ids;
+
+  // update agent histories
+  for (const auto & object : objects_msg->objects) {
+    const auto agent_id = autoware_utils::to_hex_string(object.object_id);
+    observed_ids.insert(agent_id);
+
+    // update history with the current state
+    const auto state = conversion::to_agent_state(object);
+    auto [it, init] = history_map_with_ego_.try_emplace(agent_id, agent_id, num_past_, state);
+    if (!init) {
+      it->second.update(state);
+    }
+    histories.emplace_back(it->second);
+  }
+
+  static const std::string ego_id = "EGO";
+  auto [it, init] = history_map_with_ego_.try_emplace(ego_id, ego_id, num_past_, current_ego);
+  if (!init) {
+    it->second.update(current_ego);
+  }
+  histories.emplace_back(it->second);
+  observed_ids.insert(ego_id);
+
+  // remove histories that are not observed at the current
+  for (auto itr = history_map_with_ego_.begin(); itr != history_map_with_ego_.end();) {
+    const auto & agent_id = itr->first;
+    // update unobserved history with empty
+    if (std::find(observed_ids.begin(), observed_ids.end(), agent_id) == observed_ids.end()) {
+      itr = history_map_with_ego_.erase(itr);
     } else {
       ++itr;
     }

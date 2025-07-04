@@ -65,8 +65,8 @@ TEST(TestMapTensor, ConstructValid)
 
   // Dummy polylines
   std::vector<Polyline> polylines = {
-    Polyline({{0.0, 0.0, 0.0, MapLabel::ROADWAY}, {1.0, 0.0, 0.0, MapLabel::ROADWAY}}),
-    Polyline({{2.0, 0.0, 0.0, MapLabel::ROADWAY}, {3.0, 0.0, 0.0, MapLabel::ROADWAY}})};
+    Polyline(0, {{0.0, 0.0, 0.0, MapLabel::ROADWAY}, {1.0, 0.0, 0.0, MapLabel::ROADWAY}}),
+    Polyline(1, {{2.0, 0.0, 0.0, MapLabel::ROADWAY}, {3.0, 0.0, 0.0, MapLabel::ROADWAY}})};
 
   MapTensor map_tensor(tensor, K, P, Dm, polylines);
 
@@ -84,7 +84,7 @@ TEST(TestMapTensor, ConstructInvalidThrows)
   std::vector<float> tensor(K * P * Dm - 1, 0.5f);
 
   std::vector<Polyline> polylines = {
-    Polyline({{0.0, 0.0, 0.0, MapLabel::ROADWAY}, {1.0, 0.0, 0.0, MapLabel::ROADWAY}})};
+    Polyline(0, {{0.0, 0.0, 0.0, MapLabel::ROADWAY}, {1.0, 0.0, 0.0, MapLabel::ROADWAY}})};
 
   EXPECT_THROW(
     {

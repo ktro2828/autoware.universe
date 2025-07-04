@@ -63,7 +63,7 @@ TEST(TestPreProcessor, ProcessMinimalInput)
 
   // Create a polyline with 2 points
   std::vector<Polyline> polylines = {
-    Polyline({{2.0, 0.0, 0.0, MapLabel::ROADWAY}, {3.0, 0.0, 0.0, MapLabel::ROADWAY}})};
+    Polyline(0, {{2.0, 0.0, 0.0, MapLabel::ROADWAY}, {3.0, 0.0, 0.0, MapLabel::ROADWAY}})};
 
   // Run preprocessing
   auto [agent_meta, map_meta, rpe] = processor.process(histories, polylines, ego);
@@ -138,33 +138,39 @@ private:
   void setup_map()
   {
     // lane
-    archetype::Polyline lane{{
-      {1.0, 1.0, 1.0, archetype::MapLabel::ROADWAY},
-      {1.0, 1.0, 1.0, archetype::MapLabel::ROADWAY},
-      {1.0, 1.0, 1.0, archetype::MapLabel::ROADWAY},
-    }};
+    archetype::Polyline lane{
+      0,
+      {
+        {1.0, 1.0, 1.0, archetype::MapLabel::ROADWAY},
+        {1.0, 1.0, 1.0, archetype::MapLabel::ROADWAY},
+        {1.0, 1.0, 1.0, archetype::MapLabel::ROADWAY},
+      }};
     polylines.emplace_back(lane);
 
     // left boundary
 
-    archetype::Polyline left_boundary{{
-      {1.0, 1.0, 1.0, archetype::MapLabel::SOLID},
-      {1.0, 1.0, 1.0, archetype::MapLabel::SOLID},
-    }};
+    archetype::Polyline left_boundary{
+      1,
+      {
+        {1.0, 1.0, 1.0, archetype::MapLabel::SOLID},
+        {1.0, 1.0, 1.0, archetype::MapLabel::SOLID},
+      }};
     polylines.emplace_back(left_boundary);
 
     // right boundary
-    archetype::Polyline right_boundary{{{1.0, 1.0, 1.0, archetype::MapLabel::DASHED}}};
+    archetype::Polyline right_boundary{2, {{1.0, 1.0, 1.0, archetype::MapLabel::DASHED}}};
     polylines.emplace_back(right_boundary);
 
     // crosswalk
-    archetype::Polyline crosswalk{{
-      {1.0, 1.0, 1.0, archetype::MapLabel::CROSSWALK},
-      {1.0, 1.0, 1.0, archetype::MapLabel::CROSSWALK},
-      {1.0, 1.0, 1.0, archetype::MapLabel::CROSSWALK},
-      {1.0, 1.0, 1.0, archetype::MapLabel::CROSSWALK},
-      {1.0, 1.0, 1.0, archetype::MapLabel::CROSSWALK},
-    }};
+    archetype::Polyline crosswalk{
+      3,
+      {
+        {1.0, 1.0, 1.0, archetype::MapLabel::CROSSWALK},
+        {1.0, 1.0, 1.0, archetype::MapLabel::CROSSWALK},
+        {1.0, 1.0, 1.0, archetype::MapLabel::CROSSWALK},
+        {1.0, 1.0, 1.0, archetype::MapLabel::CROSSWALK},
+        {1.0, 1.0, 1.0, archetype::MapLabel::CROSSWALK},
+      }};
     polylines.emplace_back(crosswalk);
   }
 };

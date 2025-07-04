@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <iterator>
 #include <string>
 #include <vector>
@@ -41,7 +42,6 @@ namespace
 std::vector<archetype::Polyline> break_polylines(
   const std::vector<archetype::Polyline> & polylines, size_t max_num_point, double break_distance)
 {
-  std::vector<archetype::Polyline> output;
   if (polylines.empty()) {
     return polylines;
   }
@@ -54,6 +54,8 @@ std::vector<archetype::Polyline> break_polylines(
   std::vector<archetype::MapPoint> buffer;
   buffer.emplace_back(flattened.front());
 
+  int64_t id = 0;
+  std::vector<archetype::Polyline> output;
   for (size_t i = 1; i < flattened.size(); ++i) {
     const auto & previous = flattened[i - 1];
     const auto & current = flattened[i];
@@ -62,7 +64,7 @@ std::vector<archetype::Polyline> break_polylines(
       buffer.size() >= max_num_point || previous.distance_from(current) > break_distance;
 
     if (break_polyline) {
-      output.emplace_back(buffer);
+      output.emplace_back(++id, buffer);
       buffer.clear();
     }
 
@@ -70,7 +72,7 @@ std::vector<archetype::Polyline> break_polylines(
   }
 
   if (!buffer.empty()) {
-    output.emplace_back(buffer);
+    output.emplace_back(++id, buffer);
   }
 
   return output;
