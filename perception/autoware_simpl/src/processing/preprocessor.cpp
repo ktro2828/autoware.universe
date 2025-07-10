@@ -178,7 +178,8 @@ AgentMetadata PreProcessor::process_agent(
   NodePoints node_vectors(max_num_agent_);
 
   // trim top-k nearest neighbor histories
-  const auto neighbor_histories = archetype::trim_neighbors(histories, current_ego, max_num_agent_);
+  const auto neighbor_histories =
+    archetype::trim_neighbors(histories, label_ids_, current_ego, max_num_agent_);
   for (size_t n = 0; n < neighbor_histories.size(); ++n) {
     const auto & history = neighbor_histories.at(n);
     agent_ids.emplace_back(history.agent_id);
@@ -217,7 +218,7 @@ AgentMetadata PreProcessor::process_agent(
       // onehot
       for (size_t l = 0; l < label_ids_.size(); ++l) {
         const auto & label_id = label_ids_.at(l);
-        attributes[6 + l] = label_id == static_cast<size_t>(state.label) ? 1.0f : 0.0f;
+        attributes[6 + l] = label_id == static_cast<size_t>(history.label) ? 1.0f : 0.0f;
       }
       // is valid
       attributes[num_attribute - 1] = static_cast<float>(state.is_valid);

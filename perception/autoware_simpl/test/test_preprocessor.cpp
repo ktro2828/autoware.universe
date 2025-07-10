@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "autoware/simpl/archetype/agent.hpp"
 #include "autoware/simpl/processing/preprocessor.hpp"
 
 #include <gtest/gtest.h>
@@ -56,9 +57,9 @@ TEST(TestPreProcessor, ProcessMinimalInput)
   PreProcessor processor({static_cast<size_t>(AgentLabel::VEHICLE)}, 1, 1, 1, 2, 100.0, 10.0);
 
   // Create a single-agent history
-  AgentState ego{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, AgentLabel::UNKNOWN, true};
-  AgentHistory history("A", 1);
-  history.update(AgentState{1.0, 1.0, 0.0, 0.0, 0.5, 0.5, AgentLabel::VEHICLE, true});
+  AgentState ego{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, true};
+  AgentHistory history("A", AgentLabel::VEHICLE, 1);
+  history.update(AgentState{1.0, 1.0, 0.0, 0.0, 0.5, 0.5, true});
   std::vector<AgentHistory> histories = {history};
 
   // Create a polyline with 2 points
@@ -125,14 +126,14 @@ private:
     };
 
     for (const auto & [agent_id, label] : agent_id_and_label) {
-      archetype::AgentHistory history(agent_id, num_past);
+      archetype::AgentHistory history(agent_id, label, num_past);
       for (size_t t = 0; t < num_past; ++t) {
-        history.update(archetype::AgentState(1, 1, 1, 1, 1, 1, label, true));
+        history.update(archetype::AgentState(1, 1, 1, 1, 1, 1, true));
       }
       histories.emplace_back(history);
     }
 
-    current_ego = archetype::AgentState(1, 1, 1, 1, 1, 1, AgentLabel::VEHICLE, true);
+    current_ego = archetype::AgentState(1, 1, 1, 1, 1, 1, true);
   }
 
   void setup_map()

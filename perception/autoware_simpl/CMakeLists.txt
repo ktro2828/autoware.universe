@@ -22,8 +22,7 @@ if(NOT (CUDAToolkit_FOUND AND CUDNN_FOUND AND TENSORRT_FOUND))
 endif()
 
 if(TENSORRT_VERSION VERSION_LESS 8.5)
-    message(
-    FATAL_ERROR
+    message(FATAL_ERROR
     "Unsupported version TensorRT ${TENSORRT_VERSION} detected. "
     "This package requires TensorRT 8.5 or later."
   )
@@ -61,9 +60,7 @@ if(BUILD_TESTING)
     test/test_tracked_object_conversion.cpp
     # processing
     test/test_postprocessor.cpp
-    test/test_preprocessor.cpp
-    # DEBUG
-    test/test_with_data.cpp)
+    test/test_preprocessor.cpp)
 
     target_link_libraries(test_simpl ${PROJECT_NAME})
 endif()

@@ -266,7 +266,7 @@ void SimplNode::callback(const TrackedObjects::ConstSharedPtr objects_msg)
         size_t t = 0;
         for (const auto & s : h) {
           ofs << h.agent_id << ',' << t << ',' << s.x << ',' << s.y << ',' << s.z << ',' << s.yaw
-              << ',' << s.vx << ',' << s.vy << ',' << label2string(s.label) << ','
+              << ',' << s.vx << ',' << s.vy << ',' << label2string(h.label) << ','
               << (s.is_valid ? "true" : "false") << '\n';
           ++t;
         }
@@ -386,8 +386,9 @@ std::vector<archetype::AgentHistory> SimplNode::update_history(
     observed_ids.insert(agent_id);
 
     // update history with the current state
+    const auto label = conversion::to_agent_label(object);
     const auto state = conversion::to_agent_state(object);
-    auto [it, init] = history_map_.try_emplace(agent_id, agent_id, num_past_, state);
+    auto [it, init] = history_map_.try_emplace(agent_id, agent_id, label, num_past_, state);
     if (!init) {
       it->second.update(state);
     }
@@ -427,8 +428,10 @@ std::vector<archetype::AgentHistory> SimplNode::update_history_with_ego(
     observed_ids.insert(agent_id);
 
     // update history with the current state
+    const auto label = conversion::to_agent_label(object);
     const auto state = conversion::to_agent_state(object);
-    auto [it, init] = history_map_with_ego_.try_emplace(agent_id, agent_id, num_past_, state);
+    auto [it, init] =
+      history_map_with_ego_.try_emplace(agent_id, agent_id, label, num_past_, state);
     if (!init) {
       it->second.update(state);
     }
@@ -436,7 +439,8 @@ std::vector<archetype::AgentHistory> SimplNode::update_history_with_ego(
   }
 
   static const std::string ego_id = "EGO";
-  auto [it, init] = history_map_with_ego_.try_emplace(ego_id, ego_id, num_past_, current_ego);
+  auto [it, init] = history_map_with_ego_.try_emplace(
+    ego_id, ego_id, archetype::AgentLabel::VEHICLE, num_past_, current_ego);
   if (!init) {
     it->second.update(current_ego);
   }

@@ -71,7 +71,7 @@ TEST(TestPolyline, DistanceFromAgentState)
     {1.0, 1.0, 0.0, MapLabel::UNKNOWN}, {2.0, 2.0, 0.0, MapLabel::UNKNOWN}};
   Polyline polyline(0, pts);
 
-  AgentState agent(0.0, 0.0, 0.0, 0.0, 0, 0, {}, true);
+  AgentState agent(0.0, 0.0, 0.0, 0.0, 0, 0, true);
   EXPECT_TRUE(polyline.distance_from(agent) > 0.0);
 }
 
@@ -81,7 +81,7 @@ TEST(TestPolyline, TransformToAgentFrame)
     {1.0, 0.0, 0.0, MapLabel::ROADWAY}, {2.0, 0.0, 0.0, MapLabel::ROADWAY}};
   Polyline polyline(0, pts);
 
-  AgentState state(1.0, 0.0, 0.0, M_PI / 2, 0, 0, {}, true);
+  AgentState state(1.0, 0.0, 0.0, M_PI / 2, 0, 0, true);
   auto transformed = polyline.transform(state);
 
   EXPECT_EQ(transformed.size(), 2u);
@@ -93,7 +93,7 @@ TEST(TestPolyline, TransformToAgentFrame)
 
 TEST(TestPolyline, TrimNeighborsWithinRange)
 {
-  AgentState ref_state(0.0, 0.0, 0.0, 0.0, 0, 0, {}, true);
+  AgentState ref_state(0.0, 0.0, 0.0, 0.0, 0, 0, true);
 
   Polyline p1(0, {{1.0, 0.0, 0.0, MapLabel::ROADWAY}});
   Polyline p2(1, {{10.0, 0.0, 0.0, MapLabel::ROADWAY}});
