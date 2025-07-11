@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <iostream>
 #include <iterator>
 #include <string>
 #include <vector>
@@ -172,10 +173,10 @@ AgentMetadata PreProcessor::process_agent(
   const size_t num_label = label_ids_.size();
   const size_t num_attribute = num_label + 7;  // L + 7
 
-  std::vector<float> in_tensor(max_num_agent_ * num_past_ * num_attribute);
+  std::vector<float> in_tensor(max_num_agent_ * num_past_ * num_attribute);  // (N, A, T)
   std::vector<std::string> agent_ids;
-  NodePoints node_centers(max_num_agent_);
-  NodePoints node_vectors(max_num_agent_);
+  NodePoints node_centers(max_num_agent_);  // (N,)
+  NodePoints node_vectors(max_num_agent_);  // (N,)
 
   // trim top-k nearest neighbor histories
   const auto neighbor_histories =
@@ -242,7 +243,7 @@ MapMetadata PreProcessor::process_map(
   // trim neighbor polylines
   auto result = archetype::trim_neighbors(polylines, current_ego, polyline_range_distance_);
 
-  // w.r.t map coordinate frame
+  // separate polylines w.r.t map coordinate frame
   result = break_polylines(result, max_num_point_, polyline_break_distance_);
 
   std::sort(
@@ -255,15 +256,12 @@ MapMetadata PreProcessor::process_map(
 
   // create tensor, node centers and vectors
   constexpr size_t num_attribute = 4;
-  std::vector<float> in_tensor(max_num_polyline_ * max_num_point_ * num_attribute);
-  NodePoints node_centers(max_num_polyline_);
-  NodePoints node_vectors(max_num_polyline_);
-  std::vector<archetype::Polyline> used_polylines;
+  std::vector<float> in_tensor(max_num_polyline_ * max_num_point_ * num_attribute);  // (N, P, Dm)
+  NodePoints node_centers(max_num_polyline_);                                        // (N,)
+  NodePoints node_vectors(max_num_polyline_);                                        // (N,)
   for (size_t k = 0; k < result.size() && k < max_num_polyline_; ++k) {
     // transform map to ego
     const auto & polyline = result.at(k).transform(current_ego);
-
-    used_polylines.emplace_back(polyline);
 
     // node center
     const auto & center = polyline.center();
@@ -288,8 +286,7 @@ MapMetadata PreProcessor::process_map(
     }
   }
 
-  archetype::MapTensor map_tensor(
-    in_tensor, max_num_polyline_, max_num_point_, num_attribute, used_polylines);
+  archetype::MapTensor map_tensor(in_tensor, max_num_polyline_, max_num_point_, num_attribute);
   return {map_tensor, node_centers, node_vectors};
 }
 
@@ -298,14 +295,14 @@ PreProcessor::RpeTensor PreProcessor::process_rpe(
 {
   // Concatenate node centers and vectors of agent and map
   const size_t num_rpe = agent_metadata.size() + map_metadata.size();  // N + K
-  constexpr size_t num_attribute = 5;                                  // D
+  constexpr size_t num_attribute = 5;                                  // Dr
 
   NodePoints node_centers(agent_metadata.centers.begin(), agent_metadata.centers.end());
   NodePoints node_vectors(agent_metadata.vectors.begin(), agent_metadata.vectors.end());
   node_centers.insert(node_centers.end(), map_metadata.centers.begin(), map_metadata.centers.end());
   node_vectors.insert(node_vectors.end(), map_metadata.vectors.begin(), map_metadata.vectors.end());
 
-  RpeTensor rpe_tensor(num_rpe * num_rpe * num_attribute);
+  RpeTensor rpe_tensor(num_rpe * num_rpe * num_attribute);  // (N+K, N+K, Dr)
   for (size_t i = 0; i < num_rpe; ++i) {
     const auto & ci = node_centers.at(i);
     const auto & vi = node_vectors.at(i);
@@ -313,14 +310,18 @@ PreProcessor::RpeTensor PreProcessor::process_rpe(
       const auto & cj = node_centers.at(j);
       const auto & vj = node_vectors.at(j);
 
+      if (!ci.is_valid || !cj.is_valid || !vi.is_valid || !vj.is_valid) {
+        continue;
+      }
+
       // position vector
       const double dvx = cj.x - ci.x;
       const double dvy = cj.y - ci.y;
 
-      const double cos_a1 = cosine_pe(vi, vj);
-      const double sin_a1 = sine_pe(vi, vj);
-      const double cos_a2 = cosine_pe(vi, dvx, dvy);
-      const double sin_a2 = sine_pe(vi, dvx, dvy);
+      const double cos_a1 = cosine_pe(vj, vi);
+      const double sin_a1 = sine_pe(vj, vi);
+      const double cos_a2 = cosine_pe(vj, dvx, dvy);
+      const double sin_a2 = sine_pe(vj, dvx, dvy);
 
       constexpr double rpe_radius = 100.0;  // NOTE: Referred to the original implementation
       const double distance = 2.0 * std::hypot(dvx, dvy) / rpe_radius;
