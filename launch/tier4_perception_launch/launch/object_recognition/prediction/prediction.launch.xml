@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
   <arg name="use_vector_map" default="false" description="use vector map in prediction"/>
-  <arg name="prediction_model_type" default="map_based" description="prediction model type">
+  <arg name="prediction_model_type" default="simpl" description="prediction model type">
     <choice value="map_based"/>
     <choice value="simpl"/>
   </arg>
