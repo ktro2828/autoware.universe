@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+  <!-- Parameters -->
+  <arg name="file/parameter" default="$(find-pkg-share autoware_bevformer)/config/bevformer.param.yaml"/>
+  <arg name="directory/onnx" default="$(env HOME)/autoware_data/bevformer"/>
+
+  <!-- Input topics -->
+  <arg name="camera_namespaces" default="[/sensing/camera/camera0, /sensing/camera/camera1, /sensing/camera/camera2, /sensing/camera/camera3, /sensing/camera/camera4, /sensing/camera/camera5]"/>
+  <arg name="anchor_namespace" default="/sensing/camera/camera0"/>
+  <arg name="image_suffix" default="image_rect_color"/>
+  <arg name="camera_info_suffix" default="camera_info"/>
+  <arg name="use_raw" default="false"/>
+
+  <!-- Output topics -->
+  <arg name="output/objects" default="/output/objects"/>
+
+  <node pkg="autoware_bevformer" exec="autoware_bevformer_exe" name="bevformer" output="screen">
+    <param from="$(var file/parameter)" allow_substs="true"/>
+    <param name="camera_namespaces" value="$(var camera_namespaces)"/>
+    <param name="anchor_namespace" value="$(var anchor_namespace)"/>
+    <param name="image_suffix" value="$(var image_suffix)"/>
+    <param name="camera_info_suffix" value="$(var camera_info_suffix)"/>
+    <param name="use_raw" value="$(var use_raw)"/>
+    <remap from="~/output/objects" to="$(var output/objects)"/>
+  </node>
+</launch>
