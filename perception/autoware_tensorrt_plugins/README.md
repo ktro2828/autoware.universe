@@ -53,6 +53,31 @@ The `MultiScaleDeformableAttentionPlugin` implements the multi-scale deformable 
 
 - Attended features (B, Q, M\*D)
 
+### Point RoPE
+
+The `PointRoPEPlugin` implements the Point RoPE mechanism introduced in [LitePT: Lighter Yet Stronger Point Transformer](https://arxiv.org/abs/2512.13689v1).
+This approach is inspired by Rotary Positional Embedding (RoPE) mechanism introduced in [RoFormer: Enhanced Transformer with Rotary Position Embedding](https://arxiv.org/abs/2104.09864).
+
+**Key features:**
+
+- Supports learning-free and lightweight rotary positional encoding for 3D points
+- Optimized CUDA implementation for efficient GPU execution
+- Supports both FP32 and FP16 precision
+
+**Inputs:**
+
+1. `tokens`: Token tensor (B, N, H, D)
+2. `positions`: Token positions (B, N, 3)
+
+**Output:**
+
+- Embedded token tensor (B, N, H, D)
+
+**Parameters:**
+
+- `base`: Base value for the Point RoPE mechanism
+- `f0`: Scaling factor for the Point RoPE mechanism
+
 ### Rotate
 
 The `RotatePlugin` provides efficient image rotation functionality with support for different interpolation methods. This is useful for data augmentation and geometric transformations in perception pipelines.
@@ -112,6 +137,32 @@ The implementation of multi-scale deformable attention is derived from [Deformab
 > Copyright (c) 2020 SenseTime. All Rights Reserved.
 >
 > Licensed under the Apache License, Version 2.0
+
+### PointRoPE
+
+The PointRoPE plugin implementation is derived from [LitePT](https://github.com/prs-eth/LitePT) and modified for TensorRT plugin usage. The original implementation is provided under MIT License:
+
+> MIT License
+>
+> Copyright (c) 2025 Photogrammetry and Remote Sensing Lab
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all
+> copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+> SOFTWARE.
 
 ### Rotate and Select and Pad
 

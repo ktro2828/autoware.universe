@@ -18,6 +18,7 @@
 #include "autoware/tensorrt_plugins/implicit_gemm_plugin_creator.hpp"
 #include "autoware/tensorrt_plugins/indice_conv_plugin_creator.hpp"
 #include "autoware/tensorrt_plugins/multi_scale_deformable_attention_plugin_creator.hpp"
+#include "autoware/tensorrt_plugins/point_rope_plugin_creator.hpp"
 #include "autoware/tensorrt_plugins/quick_cumsum_cuda_plugin_creator.hpp"
 #include "autoware/tensorrt_plugins/rotate_plugin_creator.hpp"
 #include "autoware/tensorrt_plugins/segment_csr_plugin_creator.hpp"
@@ -67,7 +68,7 @@ extern "C" void setLoggerFinder(nvinfer1::ILoggerFinder * finder)
 
 extern "C" nvinfer1::IPluginCreatorInterface * const * getCreators(std::int32_t & num_creators)
 {
-  num_creators = 11;
+  num_creators = 12;
   static nvinfer1::plugin::ArgsortPluginCreator argsort_plugin_creator{};
   static nvinfer1::plugin::QuickCumsumCudaPluginCreator quick_cumsum_cuda_plugin_creator{};
   static nvinfer1::plugin::GetIndicesPairsImplicitGemmPluginCreator
@@ -78,6 +79,7 @@ extern "C" nvinfer1::IPluginCreatorInterface * const * getCreators(std::int32_t 
     indice_conv_plugin_creator{};  // cSpell:ignore Indice
   static autoware::tensorrt_plugins::MultiScaleDeformableAttentionPluginCreator
     multi_scale_deformable_attention_plugin_creator{};
+  static nvinfer1::plugin::PointRoPEPluginCreator point_rope_plugin_creator{};
   static autoware::tensorrt_plugins::RotatePluginCreator rotate_plugin_creator{};
   static nvinfer1::plugin::SegmentCSRPluginCreator segment_csr_plugin_creator{};
   static autoware::tensorrt_plugins::SelectAndPadPluginCreator select_and_pad_plugin_creator{};
@@ -91,6 +93,7 @@ extern "C" nvinfer1::IPluginCreatorInterface * const * getCreators(std::int32_t 
     &implicit_gemm_plugin_creator,
     &indice_conv_plugin_creator,
     &multi_scale_deformable_attention_plugin_creator,
+    &point_rope_plugin_creator,
     &rotate_plugin_creator,
     &segment_csr_plugin_creator,
     &select_and_pad_plugin_creator,
