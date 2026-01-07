@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>autoware_litept</name>
+  <version>0.0.0</version>
+  <description>The autoware_litept package</description>
+  <maintainer email="kotaro.uetake@tier4.jp">ktro2828</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake_auto</buildtool_depend>
+  <buildtool_depend>autoware_cmake</buildtool_depend>
+
+  <depend>autoware_cuda_dependency_meta</depend>
+  <depend>autoware_cuda_utils</depend>
+  <depend>autoware_internal_debug_msgs</depend>
+  <depend>autoware_perception_msgs</depend>
+  <depend>autoware_point_types</depend>
+  <depend>autoware_tensorrt_common</depend>
+  <depend>autoware_utils_debug</depend>
+  <depend>autoware_utils_system</depend>
+  <depend>cuda_blackboard</depend>
+  <depend>launch_ros</depend>
+  <depend>rclcpp</depend>
+  <depend>rclcpp_components</depend>
+  <depend>tf2_sensor_msgs</depend>
+  <depend>tl_expected</depend>
+
+  <exec_depend>autoware_tensorrt_plugins</exec_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+  <test_depend>autoware_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

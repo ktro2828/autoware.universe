@@ -1,0 +1,26 @@
+/**:
+  ros__parameters:
+    # NOTE: Default parameters are based on the experiment with NuScenes
+    num_voxels: [32000, 128000, 292000] # [min, opt, max]
+    point_cloud_ranges: [-76.8, -76.8, -4.0, 76.8, 76.8, 8.0] # [x_min, y_min, z_min, x_max, y_max, z_max]
+    voxel_sizes: [0.05, 0.05, 0.05] # [x, y, z]
+    cloud_capacity: 2000000
+    class_names:
+      [
+        "BARRIER",
+        "BICYCLE",
+        "BUS",
+        "CAR",
+        "CONSTRUCTION_VEHICLE",
+        "MOTORCYCLE",
+        "PEDESTRIAN",
+        "TRAFFIC_CONE",
+        "TRAILER",
+        "TRUCK",
+        "DRIVABLE_SURFACE",
+        "OTHER_FLAT",
+        "SIDEWALK",
+        "TERRAIN",
+        "MANMADE",
+        "VEGETATION",
+      ]

@@ -1,0 +1,8 @@
+/**:
+  ros__parameters:
+    # plugins
+    plugins_path: $(find-pkg-share autoware_tensorrt_plugins)/plugins/libautoware_tensorrt_plugins.so
+    # network
+    onnx_path: "$(var model_path)/litept.onnx"
+    engine_path: "$(var model_path)/litept.engine"
+    precision: fp16

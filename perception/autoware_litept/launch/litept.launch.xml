@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Parameters -->
+  <arg name="data_path" default="$(env HOME)/autoware_data"/>
+  <arg name="model_path" default="$(var data_path)/litept"/>
+  <arg name="model_param" default="$(find-pkg-share autoware_litept)/config/litept.param.yaml"/>
+  <arg name="ml_package_param" default="$(find-pkg-share autoware_litept)/config/ml_package_litept.param.yaml"/>
+
+  <!-- I/O topics -->
+  <arg name="input/pointcloud" default="/sensing/lidar/concatenated/pointcloud"/>
+  <arg name="output/pointcloud" default="/sensing/lidar/segmented/pointcloud"/>
+
+  <!-- Arguments -->
+  <arg name="build_only" default="false"/>
+
+  <node pkg="autoware_litept" exec="autoware_litept_node" output="screen">
+    <param from="$(var model_param)" allow_substs="true"/>
+    <param from="$(var ml_package_param)" allow_substs="true"/>
+    <remap from="~/input/pointcloud" to="$(var input/pointcloud)"/>
+    <remap from="~/input/pointcloud/cuda" to="$(var input/pointcloud)/cuda"/>
+    <remap from="~/output/pointcloud" to="$(var output/pointcloud)"/>
+    <remap from="~/output/pointcloud/cuda" to="$(var output/pointcloud)/cuda"/>
+    <param name="build_only" value="$(var build_only)"/>
+  </node>
+</launch>
