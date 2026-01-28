@@ -19,8 +19,7 @@ if(CUDA_FOUND AND TENSORRT_FOUND)
     list(APPEND CUDA_NVCC_FLAGS "-gencode arch=compute_89,code=sm_89")
     # NOTE(ktro2828): PTX support for newer GPUs until we can compile directly
     list(APPEND CUDA_NVCC_FLAGS "-gencode arch=compute_89,code=compute_89")
-    # TODO(ktro2828): enable when the driver supports it list(APPEND
-    # CUDA_NVCC_FLAGS "-gencode arch=compute_120,code=sm_120")
+    list(APPEND CUDA_NVCC_FLAGS "-gencode arch=compute_120,code=sm_120")
 
     cuda_add_library(${PROJECT_NAME}_cuda_lib
         SHARED
