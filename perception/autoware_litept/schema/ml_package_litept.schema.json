@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Model parameters for LitePT",
+  "type": "object",
+  "definitions": {
+    "litept": {
+      "type": "object",
+      "properties": {
+        "num_voxels": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "description": "Voxel ranges used during inference [min, opt, max].",
+          "minItems": 3,
+          "maxItems": 3,
+          "default": [10000, 30000, 40000]
+        },
+        "point_cloud_ranges": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "Range in meters of the pointcloud in meters [min_x, min_y, min_z, max_x, max_y, max_z].",
+          "minItems": 6,
+          "maxItems": 6,
+          "default": [-76.8, -76.8, -4.0, 76.8, 76.8, 8.0]
+        },
+        "voxel_sizes": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "Voxels size [x, y, z] in meters.",
+          "minItems": 3,
+          "maxItems": 3,
+          "default": [0.05, 0.05, 0.05]
+        },
+        "cloud_capacity": {
+          "type": "integer",
+          "description": "Capacity of the point cloud buffer (should be set to at least the maximum theoretical number of points).",
+          "minimum": 1,
+          "default": 2000000
+        },
+        "class_names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "An array of predicted classes' names.",
+          "minItems": 1,
+          "uniqueItems": true,
+          "default": ["CAR", "TRUCK", "BUS", "BICYCLE", "PEDESTRIAN"]
+        }
+      },
+      "required": [
+        "num_voxels",
+        "point_cloud_ranges",
+        "voxel_sizes",
+        "cloud_capacity",
+        "class_names"
+      ]
+    }
+  },
+  "properties": {
+    "/**": {
+      "type": "object",
+      "properties": {
+        "ros__parameters": {
+          "$ref": "#/definitions/litept"
+        }
+      },
+      "required": ["ros__parameters"]
+    }
+  },
+  "required": ["/**"]
+}

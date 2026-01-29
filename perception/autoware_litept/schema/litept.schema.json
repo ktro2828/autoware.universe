@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "TensorRT parameters for LitePT",
+  "type": "object",
+  "definitions": {
+    "litept": {
+      "type": "object",
+      "properties": {
+        "plugins_path": {
+          "type": "string",
+          "description": "A path to the TensorRT plugins.",
+          "default": "$(find-pkg-share autoware_tensorrt_plugins)/plugins/libautoware_tensorrt_plugins.so",
+          "pattern": "\\.so$"
+        },
+        "onnx_path": {
+          "type": "string",
+          "description": "A path to the ONNX model file.",
+          "default": "$(var model_path)/models/litept.onnx",
+          "pattern": "\\.onnx$"
+        },
+        "engine_path": {
+          "type": "string",
+          "description": "A path to the TensorRT engine file.",
+          "default": "$(var model_path)/models/litept.engine",
+          "pattern": "\\.engine$"
+        },
+        "precision": {
+          "type": "string",
+          "description": "A precision of the TensorRT engine.",
+          "default": "fp16",
+          "enum": ["fp32", "fp16", "int8"]
+        }
+      },
+      "required": ["plugins_path", "onnx_path", "engine_path", "precision"]
+    }
+  },
+  "properties": {
+    "/**": {
+      "type": "object",
+      "properties": {
+        "ros__parameters": {
+          "$ref": "#/definitions/litept"
+        }
+      },
+      "required": ["ros__parameters"]
+    }
+  },
+  "required": ["/**"]
+}
