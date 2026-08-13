@@ -83,6 +83,8 @@ double compute2dIoU(const CachedObject & source_object, const CachedObject & tar
   constexpr double kMinArea = 1.0e-6;
   constexpr double kMinUnionArea = 0.01;
 
+  // These guards are not required for correctness, but can improve performance by avoiding
+  // unnecessary calculations.
   if (source_object.area < kMinArea || target_object.area < kMinArea) {
     return 0.0;
   }
