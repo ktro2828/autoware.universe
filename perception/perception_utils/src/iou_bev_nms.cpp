@@ -64,7 +64,7 @@ CachedObject makeCachedObject(const DetectedObject & object)
   return cached;
 }
 
-bool isCachedTargetPairObject(
+bool isPairSubjectToNms(
   const CachedObject & object1, const CachedObject & object2, const double search_distance_2d_sq)
 {
   if (
@@ -78,7 +78,7 @@ bool isCachedTargetPairObject(
   return dx * dx + dy * dy <= search_distance_2d_sq;
 }
 
-double getCached2dIoU(const CachedObject & source_object, const CachedObject & target_object)
+double compute2dIoU(const CachedObject & source_object, const CachedObject & target_object)
 {
   constexpr double kMinArea = 1.0e-6;
   constexpr double kMinUnionArea = 0.01;
@@ -149,11 +149,11 @@ std::vector<DetectedObject> IouBevNms::apply(
     for (std::size_t source_i = 0; source_i < target_i; ++source_i) {
       const auto & target_object = ordered_objects[target_i];
       const auto & source_object = ordered_objects[source_i];
-      if (!isCachedTargetPairObject(target_object, source_object, search_distance_2d_sq_)) {
+      if (!isPairSubjectToNms(target_object, source_object, search_distance_2d_sq_)) {
         continue;
       }
 
-      const double iou = getCached2dIoU(target_object, source_object);
+      const double iou = compute2dIoU(target_object, source_object);
       max_iou = std::max(max_iou, iou);
       if (iou > params_.iou_threshold) {
         break;
